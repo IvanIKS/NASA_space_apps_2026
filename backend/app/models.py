@@ -10,7 +10,7 @@ class Observation(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     utc: Mapped[str] = mapped_column(String(32))
     lat_deg: Mapped[float] = mapped_column(Float)
-    lon_deg: Mapped[float] = mapped_column(float)
+    lon_deg: Mapped[float] = mapped_column(Float)
     alt_km: Mapped[float] = mapped_column(Float, default=0.0)
     label: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
