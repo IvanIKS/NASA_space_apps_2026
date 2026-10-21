@@ -1,1 +1,22 @@
-/kernels/
+# SPICE kernels (large binary files)
+/backend/kernels/
+
+# IDE / tooling
+/.idea/
+/.claude/
+/.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Node
+/frontend/node_modules/
+/frontend/dist/
+
+# SQLite data (persisted via Docker volume)
+*.db
+
+# OS
+.DS_Store
