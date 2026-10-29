@@ -11,6 +11,9 @@ class BodyResult(BaseModel):
 class InsolationResult(BaseModel):
     insolation_watts: float
 
+class RadioWindowResult(BaseModel):
+    pass
+
 class SurfaceQueryRequest(BaseModel):
     utc: str = Field(..., example="2026-10-18T05:15:00")
     lat_deg: float = Field(..., ge=-90, le=90)
