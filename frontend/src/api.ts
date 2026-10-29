@@ -10,6 +10,7 @@ export interface BodyResult {
 export interface SurfaceQueryResponse {
   earth: BodyResult;
   sun: BodyResult;
+  insolation: { insolation_watts: number };
 }
 
 export interface Observation {

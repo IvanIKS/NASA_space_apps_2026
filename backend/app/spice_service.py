@@ -59,4 +59,42 @@ def query_surface(
             "range_km": float(np.linalg.norm(pos)),
             "lighttime_s": float(lt),
         }
+
+    result["insolation_watts"] = calculate_insolation(utc, lat_deg, lon_deg)
+
     return result
+
+
+def calculate_insolation(utc: str, latitude : float,  longitude : float, abcorr: str = "LT+S") -> float:
+    zenith_angle = calculate_zenith_angle(latitude, calculate_declination(utc, abcorr), calculate_hour_angle(utc, longitude, abcorr))
+    cos_zenith = np.cos(zenith_angle)
+    if cos_zenith < 0:
+        return 0.0
+    else:
+        return solar_constant(utc, abcorr) * cos_zenith
+
+def calculate_zenith_angle(latitude, declination, hour_angle):
+    cos_zenith = (np.sin(latitude) * np.sin(declination)) + (np.cos(latitude) * np.cos(declination) * np.cos(hour_angle))
+    return np.arccos(cos_zenith)
+
+def calculate_declination(utc: str, abcorr: str = "LT+S") -> float:
+    _ensure_kernels()
+    et = spice.str2et(utc)
+    pos, _ = spice.spkpos("SUN", et, "MOON_ME", abcorr, "MOON")
+    pos = np.array(pos)
+    return float(np.degrees(np.arcsin(pos[2] / np.linalg.norm(pos))))
+
+
+def calculate_hour_angle(utc: str, lon_deg: float, abcorr: str = "LT+S") -> float:
+    _ensure_kernels()
+    et = spice.str2et(utc)
+    pos, _ = spice.spkpos("SUN", et, "MOON_ME", abcorr, "MOON")
+    subsolar_lon_deg = np.degrees(np.arctan2(pos[1], pos[0]))
+    h = lon_deg - subsolar_lon_deg
+    return float(((h + 180) % 360) - 180)
+
+def solar_constant(utc: str, abcorr: str = "LT+S") -> float:
+    return 1367.0 #for now ignore the changes throughout the year
+
+
+

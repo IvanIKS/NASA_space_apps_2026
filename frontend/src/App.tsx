@@ -99,6 +99,9 @@ export default function App() {
               ))}
             </tbody>
           </table>
+          <p style={{ marginTop: "0.75rem" }}>
+            Insolation: <strong>{result.insolation.insolation_watts.toFixed(1)} W/m²</strong>
+          </p>
           <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem" }}>
             <input placeholder="label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
             <button onClick={handleSave}>Save observation</button>

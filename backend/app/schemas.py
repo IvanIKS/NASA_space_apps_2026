@@ -8,6 +8,8 @@ class BodyResult(BaseModel):
     range_km: float
     lighttime_s: float
 
+class InsolationResult(BaseModel):
+    insolation_watts: float
 
 class SurfaceQueryRequest(BaseModel):
     utc: str = Field(..., example="2026-10-18T05:15:00")
@@ -15,10 +17,12 @@ class SurfaceQueryRequest(BaseModel):
     lon_deg: float = Field(..., ge=-180, le=180)
     alt_km: float = Field(default=0.0, ge=0)
 
+    insolation: InsolationResult = Field(default=None)
 
 class SurfaceQueryResponse(BaseModel):
     earth: BodyResult
     sun: BodyResult
+    insolation: InsolationResult
 
 
 class ObservationCreate(BaseModel):

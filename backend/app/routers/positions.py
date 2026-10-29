@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from ..schemas import SurfaceQueryRequest, SurfaceQueryResponse, BodyResult
+from ..schemas import SurfaceQueryRequest, SurfaceQueryResponse, BodyResult, InsolationResult
 from ..spice_service import query_surface
 
 router = APIRouter(prefix="/positions", tags=["positions"])
@@ -25,4 +25,5 @@ def surface_query(req: SurfaceQueryRequest):
             range_km=raw["sun"]["range_km"],
             lighttime_s=raw["sun"]["lighttime_s"],
         ),
+        insolation=InsolationResult(insolation_watts=raw["insolation_watts"]),
     )
