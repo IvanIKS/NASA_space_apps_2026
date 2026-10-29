@@ -66,8 +66,13 @@ def query_surface(
 
 
 def calculate_insolation(utc: str, latitude : float,  longitude : float, abcorr: str = "LT+S") -> float:
-    zenith_angle = calculate_zenith_angle(latitude, calculate_declination(utc, abcorr), calculate_hour_angle(utc, longitude, abcorr))
+    zenith_angle = calculate_zenith_angle(
+        np.radians(latitude),
+        np.radians(calculate_declination(utc, abcorr)),
+        np.radians(calculate_hour_angle(utc, longitude, abcorr)),
+    )
     cos_zenith = np.cos(zenith_angle)
+    print(cos_zenith, zenith_angle)
     if cos_zenith < 0:
         return 0.0
     else:
