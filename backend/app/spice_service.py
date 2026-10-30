@@ -10,6 +10,7 @@ KERNEL_DIR = Path(__file__).parent.parent / "kernels"
 
 _LOADED = False
 
+LUNAR_DAY_S = 29.530589 * 86_400  # synodic month in seconds (~29.53 Earth days)
 
 def _ensure_kernels():
     global _LOADED
@@ -61,10 +62,14 @@ def query_surface(
         }
 
     result["insolation_watts"] = calculate_insolation(utc, lat_deg, lon_deg)
-
+    et_from = et - LUNAR_DAY_S
+    et_to = et + LUNAR_DAY_S
+    result["insolation_graph"] = calculate_insolation_series(
+        et_from, et_to, lat_deg, lon_deg
+    )
     return result
 
-
+# -------------------------- INSOLATION --------------------------------------------------
 def calculate_insolation(utc: str, latitude : float,  longitude : float, abcorr: str = "LT+S") -> float:
     zenith_angle = calculate_zenith_angle(
         np.radians(latitude),
@@ -98,8 +103,58 @@ def calculate_hour_angle(utc: str, lon_deg: float, abcorr: str = "LT+S") -> floa
     h = lon_deg - subsolar_lon_deg
     return float(((h + 180) % 360) - 180)
 
-def solar_constant(utc: str, abcorr: str = "LT+S") -> float:
+def calculate_insolation_series(
+    et_start: float,
+    et_end: float,
+    latitude: float,
+    longitude: float,
+    step_s: float = 3600.0,
+    abcorr: str = "LT+S",
+) -> list[dict]:
+    _ensure_kernels()
+
+    lat_rad  = np.radians(latitude)
+
+    results = []
+    for et in np.arange(et_start, et_end + step_s, step_s):
+        pos, _ = spice.spkpos("SUN", et, "MOON_ME", abcorr, "MOON")
+        pos = np.array(pos)
+
+        declination_rad = np.arcsin(pos[2] / np.linalg.norm(pos))
+        h_deg = ((longitude - np.degrees(np.arctan2(pos[1], pos[0])) + 180) % 360) - 180
+        zenith_angle = calculate_zenith_angle(lat_rad, declination_rad, np.radians(h_deg))
+        cos_zenith = np.cos(zenith_angle)
+
+        results.append({
+            "utc": spice.et2utc(et, "ISOC", 0),
+            "insolation_watts": 0.0 if cos_zenith < 0 else float(solar_constant() * cos_zenith),
+        })
+
+    return results
+
+def solar_constant(utc: str = "", abcorr: str = "LT+S") -> float:
     return 1367.0 #for now ignore the changes throughout the year
 
 
+
+# -------------------------- RADIOWINDOWS --------------------------------------------------
+def earth_visibility_windows(lat_deg, lon_deg, start_utc, end_utc, step_s=3600):
+    _ensure_kernels()
+    et_start = spice.str2et(start_utc)
+    et_end   = spice.str2et(end_utc)
+    times = np.arange(et_start, et_end, step_s)
+    windows = []
+    in_view = False
+    """
+    for et in times: 
+        utc = spice.et2utc(et, "ISOC", 0)
+        el = query_surface(utc, lat_deg, lon_deg)["earth"]["elevation_deg"]
+        if el > 0 and not in_view:
+            windows.append({"rise": utc})
+            in_view = True
+        elif el <= 0 and in_view:
+            windows[-1]["set"] = utc
+            in_view = False
+    """
+    return windows
 

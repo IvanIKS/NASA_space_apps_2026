@@ -10,6 +10,7 @@ class BodyResult(BaseModel):
 
 class InsolationResult(BaseModel):
     insolation_watts: float
+    insolation_graph: list[dict]
 
 class RadioWindowResult(BaseModel):
     pass

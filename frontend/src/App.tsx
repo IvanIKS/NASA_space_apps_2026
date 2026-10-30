@@ -7,6 +7,7 @@ import {
   type SurfaceQueryResponse,
   type Observation,
 } from "./api";
+import { InsolationChart } from "./InsolationChart";
 
 function formatDeg(v: number | null, suffix = "°") {
   return v == null ? "—" : `${v.toFixed(2)}${suffix}`;
@@ -102,6 +103,7 @@ export default function App() {
           <p style={{ marginTop: "0.75rem" }}>
             Insolation: <strong>{result.insolation.insolation_watts.toFixed(1)} W/m²</strong>
           </p>
+          <InsolationChart data={result.insolation.insolation_graph} currentUtc={utc} />
           <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem" }}>
             <input placeholder="label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
             <button onClick={handleSave}>Save observation</button>

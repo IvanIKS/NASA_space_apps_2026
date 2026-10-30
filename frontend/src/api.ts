@@ -7,10 +7,18 @@ export interface BodyResult {
   lighttime_s: number;
 }
 
+export interface InsolationPoint {
+  utc: string;
+  insolation_watts: number;
+}
+
 export interface SurfaceQueryResponse {
   earth: BodyResult;
   sun: BodyResult;
-  insolation: { insolation_watts: number };
+  insolation: {
+    insolation_watts: number;
+    insolation_graph: InsolationPoint[];
+  };
 }
 
 export interface Observation {

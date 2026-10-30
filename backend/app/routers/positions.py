@@ -25,5 +25,8 @@ def surface_query(req: SurfaceQueryRequest):
             range_km=raw["sun"]["range_km"],
             lighttime_s=raw["sun"]["lighttime_s"],
         ),
-        insolation=InsolationResult(insolation_watts=raw["insolation_watts"]),
+        insolation=InsolationResult(
+            insolation_watts=raw["insolation_watts"],
+            insolation_graph=raw["insolation_graph"]
+        ),
     )
