@@ -104,14 +104,23 @@ def calculate_hour_angle(utc: str, lon_deg: float, abcorr: str = "LT+S") -> floa
     return float(((h + 180) % 360) - 180)
 
 def calculate_insolation_series(
-    et_start: float,
-    et_end: float,
+    et_start: float | str,
+    et_end: float | str,
     latitude: float,
     longitude: float,
     step_s: float = 3600.0,
     abcorr: str = "LT+S",
 ) -> list[dict]:
     _ensure_kernels()
+
+    if (isinstance(et_start, str)):
+        et_start = spice.str2et(et_start)
+    if (isinstance(et_end, str)):
+        et_end = spice.str2et(et_end)
+    if (step_s <= 0):
+        raise ValueError(
+            f"step_s must be a positive number, got {step_s} (type: {type(step_s)})"
+        )
 
     lat_rad  = np.radians(latitude)
 

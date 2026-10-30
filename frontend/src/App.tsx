@@ -1,12 +1,5 @@
-import { useState, useEffect } from "react";
-import {
-  querySurface,
-  saveObservation,
-  getObservations,
-  deleteObservation,
-  type SurfaceQueryResponse,
-  type Observation,
-} from "./api";
+import { useState } from "react";
+import { querySurface, type SurfaceQueryResponse } from "./api";
 import { InsolationChart } from "./InsolationChart";
 
 function formatDeg(v: number | null, suffix = "°") {
@@ -18,15 +11,9 @@ export default function App() {
   const [lat, setLat] = useState("-89.9");
   const [lon, setLon] = useState("0.0");
   const [alt, setAlt] = useState("0.0");
-  const [label, setLabel] = useState("");
   const [result, setResult] = useState<SurfaceQueryResponse | null>(null);
-  const [observations, setObservations] = useState<Observation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    getObservations().then(setObservations).catch(() => {});
-  }, []);
 
   async function handleQuery() {
     setLoading(true);
@@ -39,29 +26,6 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }
-
-  async function handleSave() {
-    if (!result) return;
-    const obs = await saveObservation({
-      utc,
-      lat_deg: parseFloat(lat),
-      lon_deg: parseFloat(lon),
-      alt_km: parseFloat(alt),
-      label: label || null,
-      earth_az: result.earth.azimuth_deg,
-      earth_el: result.earth.elevation_deg,
-      earth_range_km: result.earth.range_km,
-      sun_az: result.sun.azimuth_deg,
-      sun_el: result.sun.elevation_deg,
-      sun_range_km: result.sun.range_km,
-    });
-    setObservations((prev) => [obs, ...prev]);
-  }
-
-  async function handleDelete(id: number) {
-    await deleteObservation(id);
-    setObservations((prev) => prev.filter((o) => o.id !== id));
   }
 
   return (
@@ -104,29 +68,8 @@ export default function App() {
             Insolation: <strong>{result.insolation.insolation_watts.toFixed(1)} W/m²</strong>
           </p>
           <InsolationChart data={result.insolation.insolation_graph} currentUtc={utc} />
-          <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem" }}>
-            <input placeholder="label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
-            <button onClick={handleSave}>Save observation</button>
-          </div>
         </section>
       )}
-
-      <section>
-        <h2>Saved Observations ({observations.length})</h2>
-        {observations.length === 0 && <p>None yet.</p>}
-        <ul style={{ listStyle: "none", padding: 0 }}>
-          {observations.map((o) => (
-            <li key={o.id} style={{ borderBottom: "1px solid #333", padding: "0.4rem 0", display: "flex", justifyContent: "space-between" }}>
-              <span>
-                {o.label ?? "—"} &nbsp;|&nbsp; {o.utc} &nbsp;|&nbsp;
-                lat {o.lat_deg} lon {o.lon_deg} &nbsp;|&nbsp;
-                Earth el {formatDeg(o.earth_el)} &nbsp; Sun el {formatDeg(o.sun_el)}
-              </span>
-              <button onClick={() => handleDelete(o.id)}>✕</button>
-            </li>
-          ))}
-        </ul>
-      </section>
     </div>
   );
 }

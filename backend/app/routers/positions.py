@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
-from ..schemas import SurfaceQueryRequest, SurfaceQueryResponse, BodyResult, InsolationResult
-from ..spice_service import query_surface
+from ..schemas import SurfaceQueryRequest, SurfaceQueryResponse, BodyResult, InsolationResult, InsolationRequest
+from ..spice_service import query_surface, calculate_insolation_series
 
 router = APIRouter(prefix="/positions", tags=["positions"])
 
@@ -30,3 +30,11 @@ def surface_query(req: SurfaceQueryRequest):
             insolation_graph=raw["insolation_graph"]
         ),
     )
+
+@router.get("/insolation")
+def insolation(req: InsolationRequest):
+    try:
+        series = calculate_insolation_series(req.utc_from, req.utc_to, req.lat_deg, req.lon_deg, req.step_s)
+    except Exception as e: raise HTTPException(status_code=400, detail=str(e))
+    return series
+
