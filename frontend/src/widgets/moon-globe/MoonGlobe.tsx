@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Globe, { type GlobeMethods } from "react-globe.gl";
 import { ACCENT_COLOR as ACCENT, TEXTURES } from "@/shared/config";
 import type { LatLon } from "@/shared/lib";
-import "./moon-globe.css";
 
 interface Props {
   point: LatLon | null;
@@ -22,9 +21,10 @@ const LANDMARKS = [
 // the SVG hangs above it so the pin's tip sits exactly on the point.
 function createPin(): HTMLElement {
   const el = document.createElement("div");
-  el.className = "pin";
+  el.className = "size-0 pointer-events-none transition-opacity";
   el.innerHTML = `
-    <svg viewBox="0 0 28 40" width="28" height="40" aria-hidden="true">
+    <svg viewBox="0 0 28 40" width="28" height="40" aria-hidden="true"
+         class="absolute bottom-0 left-0 -translate-x-1/2 drop-shadow-[0_2px_3px_rgba(0,0,0,0.7)]">
       <path d="M14 39C14 39 2 23.5 2 14a12 12 0 0 1 24 0c0 9.5-12 25-12 25z"
             fill="${ACCENT}" stroke="#1a1200" stroke-width="2" stroke-linejoin="round"/>
       <circle cx="14" cy="14" r="4.5" fill="#1a1200"/>
@@ -61,7 +61,7 @@ export function MoonGlobe({ point, onSelect }: Props) {
   }, [point, ready]);
 
   return (
-    <div ref={wrapRef} className="globe">
+    <div ref={wrapRef} className="absolute inset-0">
       {size && (
         <Globe
           ref={globeRef}
