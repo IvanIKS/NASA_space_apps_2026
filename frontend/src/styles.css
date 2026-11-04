@@ -48,8 +48,8 @@ body {
   pointer-events: none;
 }
 
-/* Google-Maps-style entry into the first-person view, bottom-right of the map. */
-.surface-toggle {
+/* Google-Maps-style switch between globe and first-person view, bottom-right of either. */
+.view-toggle {
   position: absolute;
   right: 16px;
   bottom: 16px;
@@ -66,12 +66,12 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
-.surface-toggle:hover:not(:disabled) {
+.view-toggle:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-.surface-toggle:disabled {
+.view-toggle:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }

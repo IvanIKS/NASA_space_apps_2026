@@ -39,7 +39,7 @@ export default function App() {
         <p className="credit">Imagery: NASA Scientific Visualization Studio, LRO</p>
         <button
           type="button"
-          className="surface-toggle"
+          className="view-toggle"
           onClick={enterSurface}
           disabled={!selection.point}
           title={selection.point ? "Stand on the surface at the selected point" : "Pick a point on the Moon first"}

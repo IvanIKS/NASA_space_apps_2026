@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
 import type { BodyResult } from "./api";
 
 const SKY_SHELL_RADIUS = 80;
+// Radians of camera rotation per pixel of drag.
+const LOOK_SPEED = 0.004;
+// Stop just short of straight up/down so the horizon never flips.
+const MAX_PITCH = Math.PI / 2 - 0.05;
 const MOON_RADIUS_KM = 1737.4;
 const GROUND_SIZE_KM = 500;
 const BODY_RADIUS_KM = {
@@ -89,14 +92,19 @@ export default function SkyView({
   // React attaches this div to the page; Three.js will place its canvas inside it.
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Keep the controls available to the "start looking" button without re-creating the scene.
-  const controlsRef = useRef<PointerLockControls | null>(null);
   const earthMarkerRef = useRef<THREE.Mesh | null>(null);
   const sunMarkerRef = useRef<THREE.Mesh | null>(null);
 
-  // Pointer lock hides the cursor while looking and controls whether the overlay buttons show.
-  const [isLocked, setIsLocked] = useState(false);
   const [textureError, setTextureError] = useState(false);
+
+  // Esc leaves the viewer, like closing a Street View panorama.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onExit();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onExit]);
 
   useEffect(() => {
     // The effect runs after React creates the container in the DOM.
@@ -123,14 +131,35 @@ export default function SkyView({
     // Add the canvas to the React-owned container.
     container.appendChild(renderer.domElement);
 
-    // PointerLockControls turns mouse movement into first-person camera rotation.
-    const controls = new PointerLockControls(camera, renderer.domElement);
-    controlsRef.current = controls;
-    // Reflect pointer-lock changes in React so the overlay can respond.
-    const onLock = () => setIsLocked(true);
-    const onUnlock = () => setIsLocked(false);
-    controls.addEventListener("lock", onLock);
-    controls.addEventListener("unlock", onUnlock);
+    // Click-drag looks around, Street View style: you grab the world and pull it, so
+    // dragging right turns the camera left. YXZ order keeps yaw level and pitch free of roll.
+    const canvas = renderer.domElement;
+    canvas.style.cursor = "grab";
+    canvas.style.touchAction = "none";
+    camera.rotation.order = "YXZ";
+    let yaw = 0;
+    let pitch = 0;
+    let last: { x: number; y: number } | null = null;
+    const onPointerDown = (e: PointerEvent) => {
+      last = { x: e.clientX, y: e.clientY };
+      canvas.setPointerCapture(e.pointerId);
+      canvas.style.cursor = "grabbing";
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (!last) return;
+      yaw += (e.clientX - last.x) * LOOK_SPEED;
+      pitch = THREE.MathUtils.clamp(pitch + (e.clientY - last.y) * LOOK_SPEED, -MAX_PITCH, MAX_PITCH);
+      camera.rotation.set(pitch, yaw, 0);
+      last = { x: e.clientX, y: e.clientY };
+    };
+    const onPointerUp = () => {
+      last = null;
+      canvas.style.cursor = "grab";
+    };
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerup", onPointerUp);
+    canvas.addEventListener("pointercancel", onPointerUp);
 
     // A hemisphere light softly lights upward-facing and ground-facing surfaces.
     scene.add(new THREE.HemisphereLight(0xc4d2ff, 0x51483c, 1.8));
@@ -211,12 +240,10 @@ export default function SkyView({
       // Stop the render loop and remove browser event listeners.
       window.cancelAnimationFrame(animationFrame);
       window.removeEventListener("resize", resize);
-      controls.removeEventListener("lock", onLock);
-      controls.removeEventListener("unlock", onUnlock);
-      // Exit pointer lock if active, then dispose of its control handlers.
-      controls.unlock();
-      controls.dispose();
-      controlsRef.current = null;
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      canvas.removeEventListener("pointermove", onPointerMove);
+      canvas.removeEventListener("pointerup", onPointerUp);
+      canvas.removeEventListener("pointercancel", onPointerUp);
       active = false;
       // Dispose Three.js resources to free GPU memory.
       groundGeometry.dispose();
@@ -313,53 +340,19 @@ export default function SkyView({
         <div><span style={{ color: "#ffc247" }}>●</span> Sun</div>
         {!earth && !sun && <div style={{ marginTop: 6, color: "#b8c0d4" }}>Query positions to show markers</div>}
       </div>
-      {/* Show navigation while the pointer is available; it is hidden during pointer lock. */}
-      {!isLocked && (
-        <button
-          type="button"
-          onClick={onExit}
-          style={{
-            position: "absolute",
-            top: 16,
-            left: 16,
-            padding: "0.65rem 0.85rem",
-            border: 0,
-            borderRadius: 6,
-            background: "#e6e9f2",
-            color: "#101522",
-            cursor: "pointer",
-            font: "inherit",
-          }}
-        >
-          Back to Moon Observer
-        </button>
-      )}
-      {/* Clicking this button grants pointer lock so mouse movement rotates the camera. */}
-      {!isLocked && (
-        <button
-          type="button"
-          onClick={() => controlsRef.current?.lock()}
-          style={{
-            position: "absolute",
-            inset: "50% auto auto 50%",
-            transform: "translate(-50%, -50%)",
-            padding: "0.8rem 1rem",
-            border: 0,
-            borderRadius: 6,
-            background: "#e6e9f2",
-            color: "#101522",
-            cursor: "pointer",
-            font: "inherit",
-          }}
-        >
-          Click to rotate camera
-        </button>
-      )}
-      {/* Keep basic controls visible without intercepting clicks on the scene. */}
+      {/* Same pill, same corner as the "Surface view" button that opened this viewer. */}
+      <button type="button" className="view-toggle" onClick={onExit} title="Back to the globe (Esc)">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" />
+          <ellipse cx="12" cy="12" rx="4" ry="9" fill="none" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M3 12h18" stroke="currentColor" strokeWidth="1.8" />
+        </svg>
+        Globe view
+      </button>
       <div
         style={{
           position: "absolute",
-          right: 12,
+          left: 12,
           bottom: 12,
           color: "#b8c0d4",
           background: "rgba(8, 12, 24, 0.78)",
@@ -369,7 +362,7 @@ export default function SkyView({
           pointerEvents: "none",
         }}
       >
-        Move mouse to look · Esc to release
+        Drag to look around
       </div>
     </section>
   );
