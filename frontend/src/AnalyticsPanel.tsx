@@ -26,6 +26,7 @@ export function AnalyticsPanel({ selection, onChange, query }: Props) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     onChange({
+      ...selection,
       point: lat && lon ? { lat: parseFloat(lat), lon: parseFloat(lon) } : selection.point,
       // datetime-local drops ":00" seconds; the backend wants the full HH:MM:SS.
       utc: utc.length === 16 ? `${utc}:00` : utc,
