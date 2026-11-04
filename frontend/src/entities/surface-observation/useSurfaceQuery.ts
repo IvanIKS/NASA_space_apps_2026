@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
+import type { LatLon } from "@/shared/lib";
 import { querySurface, type SurfaceQueryResponse } from "./api";
-import type { LatLon } from "./useSelection";
 
 export interface SurfaceQueryState {
   data: SurfaceQueryResponse | null;

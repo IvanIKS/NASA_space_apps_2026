@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import type { BodyResult } from "./api";
+import type { BodyResult } from "@/entities/surface-observation";
+import { TEXTURES } from "@/shared/config";
+import { ViewToggleButton } from "@/shared/ui";
 
 const SKY_SHELL_RADIUS = 80;
 // Radians of camera rotation per pixel of drag.
@@ -179,7 +181,7 @@ export default function SkyView({
     // The equirectangular LROC map covers the Moon; UVs above center it on the observer's coordinates.
     let active = true;
     const texture = new THREE.TextureLoader().load(
-      "/textures/lroc_color_2k.jpg",
+      TEXTURES.color,
       (loadedTexture) => {
         if (!active) {
           loadedTexture.dispose();
@@ -319,7 +321,7 @@ export default function SkyView({
             background: "rgba(130, 25, 25, 0.9)",
           }}
         >
-          Could not load the lunar texture at /textures/lroc_color_2k.jpg.
+          Could not load the lunar texture at {TEXTURES.color}.
         </div>
       )}
       {/* Identify the colored markers and explain that they appear after querying positions. */}
@@ -341,14 +343,9 @@ export default function SkyView({
         {!earth && !sun && <div style={{ marginTop: 6, color: "#b8c0d4" }}>Query positions to show markers</div>}
       </div>
       {/* Same pill, same corner as the "Surface view" button that opened this viewer. */}
-      <button type="button" className="view-toggle" onClick={onExit} title="Back to the globe (Esc)">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" />
-          <ellipse cx="12" cy="12" rx="4" ry="9" fill="none" stroke="currentColor" strokeWidth="1.8" />
-          <path d="M3 12h18" stroke="currentColor" strokeWidth="1.8" />
-        </svg>
+      <ViewToggleButton icon="globe" onClick={onExit} title="Back to the globe (Esc)">
         Globe view
-      </button>
+      </ViewToggleButton>
       <div
         style={{
           position: "absolute",

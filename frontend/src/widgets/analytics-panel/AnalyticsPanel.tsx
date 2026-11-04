@@ -1,15 +1,15 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { InsolationChart } from "./InsolationChart";
-import { nowUtc, type Selection } from "./useSelection";
-import type { SurfaceQueryState } from "./useSurfaceQuery";
+import { InsolationChart } from "@/entities/insolation";
+import type { SurfaceQueryState } from "@/entities/surface-observation";
+import type { Selection } from "@/features/select-point";
+import { formatDeg as deg, nowUtc } from "@/shared/lib";
+import "./analytics-panel.css";
 
 interface Props {
   selection: Selection;
   onChange: (selection: Selection) => void;
   query: SurfaceQueryState;
 }
-
-const deg = (v: number) => `${v.toFixed(2)}°`;
 
 export function AnalyticsPanel({ selection, onChange, query }: Props) {
   const [lat, setLat] = useState("");

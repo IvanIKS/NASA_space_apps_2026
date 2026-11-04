@@ -1,0 +1,23 @@
+/* Design tokens and document defaults only; component styles live next to their components. */
+:root {
+  color-scheme: dark;
+  --bg: #000000;
+  --panel: #0d1016;
+  --border: #1f2530;
+  --text: #e6e8ec;
+  --muted: #8a93a3;
+  --accent: #f5a000;
+  --error: #ff6b6b;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+}

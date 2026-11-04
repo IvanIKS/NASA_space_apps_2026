@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react";
-
-export interface LatLon {
-  lat: number;
-  lon: number;
-}
+import { nowUtc, type LatLon } from "@/shared/lib";
 
 /** "globe" is the map page; "surface" is the first-person view from the selected point. */
 export type ViewMode = "globe" | "surface";
@@ -13,10 +9,6 @@ export interface Selection {
   /** UTC in the backend's format: YYYY-MM-DDTHH:MM:SS, no timezone suffix. */
   utc: string;
   view: ViewMode;
-}
-
-export function nowUtc(): string {
-  return new Date().toISOString().slice(0, 19);
 }
 
 function readUrl(): Selection {
@@ -32,7 +24,7 @@ function readUrl(): Selection {
   };
 }
 
-/** Selected point and time, mirrored into the URL so a view can be shared by link. */
+/** Selected point, time and view, mirrored into the URL so a view can be shared by link. */
 export function useSelection() {
   const [selection, setSelection] = useState(readUrl);
 
