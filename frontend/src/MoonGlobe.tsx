@@ -17,6 +17,21 @@ const LANDMARKS = [
 
 const ACCENT = "#f5a000";
 
+// A map-style pin in screen space, so it stays the same size at any zoom and reads
+// against the bright regolith. The outer div is a zero-size anchor at the coordinate;
+// the SVG hangs above it so the pin's tip sits exactly on the point.
+function createPin(): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "pin";
+  el.innerHTML = `
+    <svg viewBox="0 0 28 40" width="28" height="40" aria-hidden="true">
+      <path d="M14 39C14 39 2 23.5 2 14a12 12 0 0 1 24 0c0 9.5-12 25-12 25z"
+            fill="${ACCENT}" stroke="#1a1200" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="14" cy="14" r="4.5" fill="#1a1200"/>
+    </svg>`;
+  return el;
+}
+
 export function MoonGlobe({ point, onSelect }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeMethods>();
@@ -61,19 +76,20 @@ export function MoonGlobe({ point, onSelect }: Props) {
           showGraticules
           onGlobeReady={() => setReady(true)}
           onGlobeClick={({ lat, lng }) => onSelect({ lat, lon: lng })}
-          pointsData={marker}
-          pointLat="lat"
-          pointLng="lon"
-          pointColor={() => ACCENT}
-          pointAltitude={0.02}
-          pointRadius={0.5}
+          htmlElementsData={marker}
+          htmlLat="lat"
+          htmlLng="lon"
+          htmlAltitude={0.005}
+          htmlElement={createPin}
+          htmlElementVisibilityModifier={(el, visible) => { el.style.opacity = visible ? "1" : "0"; }}
+          htmlTransitionDuration={0}
           ringsData={marker}
           ringLat="lat"
           ringLng="lon"
-          ringColor={() => (t: number) => `rgba(245, 160, 0, ${1 - t})`}
-          ringMaxRadius={4}
-          ringPropagationSpeed={2}
-          ringRepeatPeriod={1200}
+          ringColor={() => (t: number) => `rgba(245, 160, 0, ${0.9 * (1 - t)})`}
+          ringMaxRadius={5}
+          ringPropagationSpeed={2.5}
+          ringRepeatPeriod={1000}
           labelsData={LANDMARKS}
           labelLat="lat"
           labelLng="lon"
