@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Globe, { type GlobeMethods } from "react-globe.gl";
-import type { LatLon } from "./useSelection";
+import { ACCENT_COLOR as ACCENT, TEXTURES } from "@/shared/config";
+import type { LatLon } from "@/shared/lib";
+import "./moon-globe.css";
 
 interface Props {
   point: LatLon | null;
@@ -14,8 +16,6 @@ const LANDMARKS = [
   { name: "Apollo 11", lat: 0.674, lon: 23.473 },
   { name: "Shackleton", lat: -89.67, lon: 129.78 },
 ];
-
-const ACCENT = "#f5a000";
 
 // A map-style pin in screen space, so it stays the same size at any zoom and reads
 // against the bright regolith. The outer div is a zero-size anchor at the coordinate;
@@ -70,8 +70,8 @@ export function MoonGlobe({ point, onSelect }: Props) {
           // The default zoom-in animation fights with pointOfView() on load.
           animateIn={false}
           backgroundColor="#000000"
-          globeImageUrl="/textures/lroc_color_2k.jpg"
-          bumpImageUrl="/textures/ldem_3_8bit.jpg"
+          globeImageUrl={TEXTURES.color}
+          bumpImageUrl={TEXTURES.elevation}
           showAtmosphere={false}
           showGraticules
           onGlobeReady={() => setReady(true)}

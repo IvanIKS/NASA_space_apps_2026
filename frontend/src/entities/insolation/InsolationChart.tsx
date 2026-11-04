@@ -3,7 +3,8 @@ import * as echarts from "echarts/core";
 import { LineChart } from "echarts/charts";
 import { DataZoomComponent, GridComponent, MarkLineComponent, TooltipComponent } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
-import type { InsolationPoint } from "./api";
+import type { InsolationPoint } from "./types";
+import "./insolation.css";
 
 echarts.use([LineChart, GridComponent, TooltipComponent, DataZoomComponent, MarkLineComponent, CanvasRenderer]);
 
