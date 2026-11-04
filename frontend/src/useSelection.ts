@@ -5,10 +5,14 @@ export interface LatLon {
   lon: number;
 }
 
+/** "globe" is the map page; "surface" is the first-person view from the selected point. */
+export type ViewMode = "globe" | "surface";
+
 export interface Selection {
   point: LatLon | null;
   /** UTC in the backend's format: YYYY-MM-DDTHH:MM:SS, no timezone suffix. */
   utc: string;
+  view: ViewMode;
 }
 
 export function nowUtc(): string {
@@ -19,9 +23,12 @@ function readUrl(): Selection {
   const params = new URLSearchParams(window.location.search);
   const lat = parseFloat(params.get("lat") ?? "");
   const lon = parseFloat(params.get("lon") ?? "");
+  const point = Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
   return {
-    point: Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null,
+    point,
     utc: params.get("utc") ?? nowUtc(),
+    // The surface view needs a point to stand on.
+    view: point && params.get("view") === "surface" ? "surface" : "globe",
   };
 }
 
@@ -36,6 +43,7 @@ export function useSelection() {
       params.set("lon", String(selection.point.lon));
     }
     params.set("utc", selection.utc);
+    if (selection.view !== "globe") params.set("view", selection.view);
     window.history.replaceState(null, "", `?${params}`);
   }, [selection]);
 

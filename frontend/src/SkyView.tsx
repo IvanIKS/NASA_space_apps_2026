@@ -148,7 +148,7 @@ export default function SkyView({
     scene.add(ground);
 
     // The equirectangular LROC map covers the Moon; UVs above center it on the observer's coordinates.
-    let active = true;``
+    let active = true;
     const texture = new THREE.TextureLoader().load(
       "/textures/lroc_color_2k.jpg",
       (loadedTexture) => {
