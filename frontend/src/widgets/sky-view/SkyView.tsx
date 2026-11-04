@@ -295,70 +295,27 @@ export default function SkyView({
   return (
     <section
       aria-label="First-person lunar ground view"
-      style={{
-        // Cover the whole browser viewport so this is a separate viewer mode.
-        position: "fixed",
-        inset: 0,
-        height: "100vh",
-        width: "100vw",
-        // Keep the canvas and overlays within the screen edges.
-        overflow: "hidden",
-        background: "#050813",
-      }}
+      // Cover the whole browser viewport so this is a separate viewer mode.
+      className="fixed inset-0 h-screen w-screen overflow-hidden bg-[#050813]"
     >
       {/* Three.js inserts and sizes its WebGL canvas in this container. */}
-      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+      <div ref={containerRef} className="size-full" />
       {textureError && (
-        <div
-          role="alert"
-          style={{
-            position: "absolute",
-            top: 16,
-            left: 16,
-            padding: "0.65rem 0.8rem",
-            borderRadius: 6,
-            color: "#fff",
-            background: "rgba(130, 25, 25, 0.9)",
-          }}
-        >
+        <div role="alert" className="absolute top-4 left-4 rounded-md bg-red-900/90 px-3 py-2.5 text-white">
           Could not load the lunar texture at {TEXTURES.color}.
         </div>
       )}
       {/* Identify the colored markers and explain that they appear after querying positions. */}
-      <div
-        style={{
-          position: "absolute",
-          top: 16,
-          right: 16,
-          padding: "0.65rem 0.8rem",
-          borderRadius: 6,
-          color: "#eee",
-          background: "rgba(8, 12, 24, 0.78)",
-          fontSize: 13,
-          pointerEvents: "none",
-        }}
-      >
-        <div><span style={{ color: "#55aaff" }}>●</span> Earth</div>
-        <div><span style={{ color: "#ffc247" }}>●</span> Sun</div>
-        {!earth && !sun && <div style={{ marginTop: 6, color: "#b8c0d4" }}>Query positions to show markers</div>}
+      <div className="pointer-events-none absolute top-4 right-4 rounded-md bg-[#080c18]/80 px-3 py-2.5 text-[13px] text-[#eee]">
+        <div><span className="text-[#55aaff]">●</span> Earth</div>
+        <div><span className="text-[#ffc247]">●</span> Sun</div>
+        {!earth && !sun && <div className="mt-1.5 text-[#b8c0d4]">Query positions to show markers</div>}
       </div>
       {/* Same pill, same corner as the "Surface view" button that opened this viewer. */}
       <ViewToggleButton icon="globe" onClick={onExit} title="Back to the globe (Esc)">
         Globe view
       </ViewToggleButton>
-      <div
-        style={{
-          position: "absolute",
-          left: 12,
-          bottom: 12,
-          color: "#b8c0d4",
-          background: "rgba(8, 12, 24, 0.78)",
-          padding: "0.45rem 0.6rem",
-          borderRadius: 6,
-          fontSize: 12,
-          pointerEvents: "none",
-        }}
-      >
+      <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-[#080c18]/80 px-2.5 py-2 text-xs text-[#b8c0d4]">
         Drag to look around
       </div>
     </section>

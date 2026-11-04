@@ -1,6 +1,6 @@
 # Frontend
 
-React 18 + TypeScript + Vite. 3D globe on `react-globe.gl`, charts on ECharts, first-person view on raw three.js.
+React 18 + TypeScript + Vite. 3D globe on `react-globe.gl`, charts on ECharts, first-person view on raw three.js. Styling: Tailwind CSS v4 + [shadcn/ui](https://ui.shadcn.com/) components.
 
 ## Running
 
@@ -29,5 +29,6 @@ Conventions:
 
 - Every slice exposes a public API through its `index.ts`; import `@/widgets/moon-globe`, never `@/widgets/moon-globe/MoonGlobe`.
 - `@/` is an alias for `src/` (see `tsconfig.json` and `vite.config.ts`).
-- A slice's CSS sits next to its component and is imported by it; `app/styles.css` holds only tokens and `body` defaults.
+- Styling is Tailwind utility classes on the elements; there are no per-component CSS files. `app/styles.css` holds the design tokens (`:root` + `@theme`) and `body` defaults only.
+- UI primitives come from shadcn/ui and live in `shared/ui/` (`npx shadcn@latest add tabs`, `slider`, `tooltip`, … — `components.json` already points there). Import them via `@/shared/ui`.
 - Same-layer imports are avoided; the one exception is `entities/surface-observation` reusing the `InsolationPoint` type from `entities/insolation`, since an observation contains an insolation series.
