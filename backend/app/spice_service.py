@@ -12,7 +12,7 @@ _LOADED = False
 
 LUNAR_DAY_S = 29.530589 * 86_400  # synodic month in seconds (~29.53 Earth days)
 
-def _ensure_kernels():
+def load_lernels():
     global _LOADED
     if _LOADED:
         return
@@ -35,7 +35,6 @@ def query_surface(
     frame: str = "MOON_ME",
     abcorr: str = "LT+S",
 ) -> dict:
-    _ensure_kernels()
     et = spice.str2et(utc)
 
     radii = spice.bodvrd("MOON", "RADII", 3)[1]
@@ -88,7 +87,6 @@ def calculate_zenith_angle(latitude, declination, hour_angle):
     return np.arccos(cos_zenith)
 
 def calculate_declination(utc: str, abcorr: str = "LT+S") -> float:
-    _ensure_kernels()
     et = spice.str2et(utc)
     pos, _ = spice.spkpos("SUN", et, "MOON_ME", abcorr, "MOON")
     pos = np.array(pos)
@@ -96,7 +94,6 @@ def calculate_declination(utc: str, abcorr: str = "LT+S") -> float:
 
 
 def calculate_hour_angle(utc: str, lon_deg: float, abcorr: str = "LT+S") -> float:
-    _ensure_kernels()
     et = spice.str2et(utc)
     pos, _ = spice.spkpos("SUN", et, "MOON_ME", abcorr, "MOON")
     subsolar_lon_deg = np.degrees(np.arctan2(pos[1], pos[0]))
@@ -111,8 +108,6 @@ def calculate_insolation_series(
     step_s: float = 3600.0,
     abcorr: str = "LT+S",
 ) -> list[dict]:
-    _ensure_kernels()
-
     if (isinstance(et_start, str)):
         et_start = spice.str2et(et_start)
     if (isinstance(et_end, str)):
@@ -148,7 +143,6 @@ def solar_constant(utc: str = "", abcorr: str = "LT+S") -> float:
 
 # -------------------------- RADIOWINDOWS --------------------------------------------------
 def earth_visibility_windows(lat_deg, lon_deg, start_utc, end_utc, step_s=3600):
-    _ensure_kernels()
     et_start = spice.str2et(start_utc)
     et_end   = spice.str2et(end_utc)
     times = np.arange(et_start, et_end, step_s)
