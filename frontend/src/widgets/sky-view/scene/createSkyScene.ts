@@ -9,11 +9,16 @@ const LOOK_SPEED = 0.004;
 /** Stop just short of straight up/down so the horizon never flips. */
 const MAX_PITCH = Math.PI / 2 - 0.05;
 const EYE_HEIGHT = 1.7;
+/**
+ * Lighting is deliberately schematic: the surface is always lit at a base level so the terrain
+ * reads at any time (base × texture brightness), and the Sun adds directional light on top when
+ * it is up. The physically meaningful illumination is the insolation figure in the panel.
+ */
+const BASE_INTENSITY = 0.9;
 /** Sunlight on the Moon is either on or off: no atmosphere, so no dusk. */
-const SUN_INTENSITY = 1.8;
-/** Earthshine: a full Earth lights the lunar night noticeably. */
-const EARTHSHINE_INTENSITY = 0.35;
-const AMBIENT_INTENSITY = 0.03;
+const SUN_INTENSITY = 1.4;
+/** Earthshine: a full Earth tints the lunar night slightly blue. */
+const EARTHSHINE_INTENSITY = 0.25;
 
 export interface SkyBodies {
   earth: BodyResult | null;
@@ -66,11 +71,12 @@ export function createSkyScene(
   // --- lights -------------------------------------------------------------------------------
   const sunLight = new THREE.DirectionalLight(0xfff4e0, 0);
   const earthshine = new THREE.DirectionalLight(0x7fa6e6, 0);
-  const ambient = new THREE.AmbientLight(0xffffff, AMBIENT_INTENSITY);
+  // Base level: a hemisphere light (darker from below) keeps enough gradient for bumps to show.
+  const base = new THREE.HemisphereLight(0xffffff, 0x666666, BASE_INTENSITY);
   // Lights Earth only, always from the Sun's direction (see createEarth).
   const earthLight = new THREE.DirectionalLight(0xffffff, 3.5);
   earthLight.layers.set(EARTH_LAYER);
-  scene.add(sunLight, sunLight.target, earthshine, earthshine.target, ambient, earthLight, earthLight.target);
+  scene.add(sunLight, sunLight.target, earthshine, earthshine.target, base, earthLight, earthLight.target);
 
   // --- objects ------------------------------------------------------------------------------
   const ground = createGround(latitudeDeg, longitudeDeg, renderer.capabilities.getMaxAnisotropy(), onTextureError);
@@ -177,7 +183,7 @@ export function createSkyScene(
         earth.mesh.scale.setScalar(apparentRadius(BODY_RADIUS_KM.earth, earthBody.range_km));
         earthshine.position.copy(skyDirection(earthBody.azimuth_deg, earthBody.elevation_deg)).multiplyScalar(100);
       }
-      // Earthshine only matters at night; by day the Sun swamps it.
+      // Earthshine only shows at night; by day the Sun swamps it.
       const night = !sunBody || sunBody.elevation_deg <= 0;
       earthshine.intensity = night && earthBody && earthBody.elevation_deg > 0 ? EARTHSHINE_INTENSITY : 0;
     },
