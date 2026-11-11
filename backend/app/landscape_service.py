@@ -38,6 +38,4 @@ def get_obstruction_coefficient(lat, lon, azimuth, elevation, observer_alt_km=0)
     #    If coefficient is <0, set in to 0. If coefficient is >1, set it to 1.
     #    If at any point min_coefficient is <0, return 0.
     #4. return coefficient -- we should return the maximum coefficient.
-
-
     return 1

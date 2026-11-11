@@ -12,7 +12,7 @@ _LOADED = False
 
 LUNAR_DAY_S = 29.530589 * 86_400  # synodic month in seconds (~29.53 Earth days)
 
-def load_lernels():
+def loadl_ernels():
     global _LOADED
     if _LOADED:
         return
@@ -59,7 +59,6 @@ def query_surface(
             "range_km": float(np.linalg.norm(pos)),
             "lighttime_s": float(lt),
         }
-
     result["insolation_watts"] = calculate_insolation(utc, lat_deg, lon_deg)
     et_from = et - LUNAR_DAY_S
     et_to = et + LUNAR_DAY_S
@@ -76,7 +75,6 @@ def calculate_insolation(utc: str, latitude : float,  longitude : float, abcorr:
         np.radians(calculate_hour_angle(utc, longitude, abcorr)),
     )
     cos_zenith = np.cos(zenith_angle)
-    print(cos_zenith, zenith_angle)
     if cos_zenith < 0:
         return 0.0
     else:
