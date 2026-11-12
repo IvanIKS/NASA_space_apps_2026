@@ -12,7 +12,7 @@ _LOADED = False
 
 LUNAR_DAY_S = 29.530589 * 86_400  # synodic month in seconds (~29.53 Earth days)
 
-def loadl_ernels():
+def load_kernels():
     global _LOADED
     if _LOADED:
         return
