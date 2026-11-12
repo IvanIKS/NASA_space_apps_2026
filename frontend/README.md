@@ -19,8 +19,8 @@ The dev proxy forwards `/api/*` to `http://localhost:8000` (override with `VITE_
 | Layer | What lives there | Current slices |
 |---|---|---|
 | `app/` | Entry point, global styles, top-level view routing | `main.tsx`, `App.tsx`, `styles.css` |
-| `pages/` | Screens composed from widgets | `observer` (globe + analytics), `surface` (first-person) |
-| `widgets/` | Self-contained blocks of UI | `moon-globe`, `analytics-panel`, `sky-view` |
+| `pages/` | Screens composed from widgets | `observer` (globe or first-person view on the left, analytics on the right) |
+| `widgets/` | Self-contained blocks of UI | `moon-globe`, `analytics-panel`, `sky-view` (`scene/` holds the three.js part) |
 | `features/` | User actions and the state they produce | `select-point` (point, time and view mode, mirrored to the URL) |
 | `entities/` | Domain data: API calls, types, hooks, data views | `surface-observation` (`/positions/surface`), `insolation` (chart) |
 | `shared/` | Reusable code with no domain knowledge | `api` (fetch helper), `ui` (view toggle), `lib` (format/time), `config` (textures, colors) |
