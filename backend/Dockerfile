@@ -9,7 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN chmod +x download_kernels.sh && ./download_kernels.sh
+RUN sed -i 's/\r$//' download_kernels.sh && chmod +x download_kernels.sh && ./download_kernels.sh
 
 # SQLite data volume point
 RUN mkdir -p /data
