@@ -42,7 +42,7 @@ export function InsolationChart({ data, currentUtc }: Props) {
     chartRef.current?.setOption(
       {
         animation: false,
-        grid: { left: 48, right: 16, top: 24, bottom: 64 },
+        grid: { left: 48, right: 16, top: 24, bottom: 28 },
         tooltip: {
           trigger: "axis",
           valueFormatter: (v: unknown) => `${Number(v).toFixed(1)} W/m²`,
@@ -62,10 +62,8 @@ export function InsolationChart({ data, currentUtc }: Props) {
           axisLabel: { color: LABEL },
           splitLine: { lineStyle: { color: "#1c222c" } },
         },
-        dataZoom: [
-          { type: "inside" },
-          { type: "slider", height: 18, bottom: 8, borderColor: AXIS, textStyle: { color: LABEL } },
-        ],
+        // Wheel/pinch zoom only; the slider's thumbnail of the series confused people.
+        dataZoom: [{ type: "inside" }],
         series: [
           {
             type: "line",
@@ -93,5 +91,5 @@ export function InsolationChart({ data, currentUtc }: Props) {
     );
   }, [data, currentUtc]);
 
-  return <div ref={elRef} className="mt-2 -mx-2 h-[260px]" />;
+  return <div ref={elRef} className="mt-2 -mx-2 h-[230px]" />;
 }
