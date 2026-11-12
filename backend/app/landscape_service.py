@@ -6,6 +6,8 @@ from pathlib import Path
 from dotenv import load_dotenv, dotenv_values
 import numpy as np
 from numpy import sqrt
+import shutil
+import urllib.request
 
 _dotenv_map_var_name = "SHOULD_DOWNLOAD_MAP"
 
@@ -196,9 +198,46 @@ def load_map(map_dir=None) -> "list[_Tile]":
 
 
 def _download_map_from_nasa_site():
-    """Download the latest GLD100 map from the NASA site."""
-    """https://data.lroc.im-ldi.com/lroc/view_rdr/WAC_GLD100"""
-    pass
+    """Download the GLD100 mosaic tiles from the NASA LROC site into
+    ``moon-map``.
+
+    https://data.lroc.im-ldi.com/lroc/view_rdr/WAC_GLD100
+    """
+
+    file_server_url = "https://data.lroc.im-ldi.com/lroc/view_rdr_product/"
+
+    required_map_addresses = [
+        "WAC_GLD100_E300N2250_100M",
+        "WAC_GLD100_E300N3150_100M",
+        "WAC_GLD100_E300N0450_100M",
+        "WAC_GLD100_E300N1350_100M",
+        "WAC_GLD100_E300S2250_100M",
+        "WAC_GLD100_E300S3150_100M",
+        "WAC_GLD100_E300S0450_100M",
+        "WAC_GLD100_E300S1350_100M",
+    ]
+
+    _MAP_DIR.mkdir(parents=True, exist_ok=True)
+
+    for address in required_map_addresses:
+        url = file_server_url + address
+        # Name the file so load_map()'s WAC_GLD100_*.TIF glob picks it up.
+        dest = _MAP_DIR / f"{address}.TIF"
+        if dest.exists():
+            print(f"Already have {dest.name}, skipping.")
+            continue
+
+        print(f"Downloading {url} -> {dest.name}")
+        tmp = dest.with_suffix(dest.suffix + ".part")
+        try:
+            with urllib.request.urlopen(url) as response, open(tmp, "wb") as fh:
+                shutil.copyfileobj(response, fh)
+            tmp.replace(dest)
+        except Exception as exc:
+            if tmp.exists():
+                tmp.unlink()
+            print(f"Failed to download {url}: {exc}")
+            raise
 
 
 
