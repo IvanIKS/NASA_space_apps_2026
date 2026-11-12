@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { BodyResult } from "@/entities/surface-observation";
 import { createGround } from "./ground";
-import { createCompass, createEarth, createStars, createSun, EARTH_LAYER } from "./sky";
+import { createCompass, createEarth, createSun, EARTH_LAYER } from "./sky";
 import { apparentRadius, azimuthToYaw, BODY_RADIUS_KM, skyDirection, skyPosition, yawToHeadingDeg } from "./skyMath";
 
 /** Radians of camera rotation per pixel of drag. */
@@ -38,7 +38,7 @@ interface Callbacks {
 }
 
 /**
- * First-person scene standing on the lunar surface: textured ground lit by the Sun, a starfield,
+ * First-person scene standing on the lunar surface: textured ground lit by the Sun,
  * the Sun and Earth at their true azimuth/elevation and angular size, compass labels on the
  * horizon, and click-drag to look around.
  */
@@ -80,13 +80,12 @@ export function createSkyScene(
 
   // --- objects ------------------------------------------------------------------------------
   const ground = createGround(latitudeDeg, longitudeDeg, renderer.capabilities.getMaxAnisotropy(), onTextureError);
-  const stars = createStars();
   const sun = createSun();
   const earth = createEarth();
   const compass = createCompass();
   sun.group.visible = false;
   earth.mesh.visible = false;
-  scene.add(ground.mesh, stars, sun.group, earth.mesh, compass.group);
+  scene.add(ground.mesh, sun.group, earth.mesh, compass.group);
 
   // --- look controls ------------------------------------------------------------------------
   // Click-drag, Street View style: you grab the world and pull it, so dragging right turns
@@ -206,8 +205,6 @@ export function createSkyScene(
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerUp);
       ground.dispose();
-      stars.geometry.dispose();
-      (stars.material as THREE.Material).dispose();
       sun.dispose();
       earth.dispose();
       compass.dispose();

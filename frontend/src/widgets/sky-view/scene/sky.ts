@@ -1,36 +1,8 @@
 import * as THREE from "three";
-import { SKY_RADIUS, skyPosition } from "./skyMath";
+import { skyPosition } from "./skyMath";
 
 /** Objects on this layer are lit only by lights on the same layer (used to light Earth independently of the ground). */
 export const EARTH_LAYER = 1;
-
-/** A static random starfield. No atmosphere on the Moon, so stars are visible in daytime too. */
-export function createStars(count = 2500): THREE.Points {
-  const positions = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3);
-  for (let i = 0; i < count; i += 1) {
-    // Uniform on the sphere; the ground plane hides the half below the horizon.
-    const u = Math.random() * 2 - 1;
-    const phi = Math.random() * Math.PI * 2;
-    const r = Math.sqrt(1 - u * u) * SKY_RADIUS * 0.97;
-    positions.set([r * Math.cos(phi), u * SKY_RADIUS * 0.97, r * Math.sin(phi)], i * 3);
-    // Mostly faint stars with a few bright ones.
-    const brightness = 0.25 + Math.random() ** 3 * 0.75;
-    colors.set([brightness, brightness, brightness * (0.9 + Math.random() * 0.1)], i * 3);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  const material = new THREE.PointsMaterial({
-    size: 1.6,
-    sizeAttenuation: false,
-    vertexColors: true,
-    transparent: true,
-    depthWrite: false,
-    fog: false,
-  });
-  return new THREE.Points(geometry, material);
-}
 
 function createRadialTexture(stops: [number, string][]): THREE.CanvasTexture {
   const size = 256;
