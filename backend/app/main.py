@@ -6,7 +6,6 @@ import app.landscape_service as landscape_service
 from .database import engine, Base
 from .routers import positions
 
-
 Base.metadata.create_all(bind=engine)
 
 landscape_service.load_map()
