@@ -202,6 +202,7 @@ def get_elevation(lat: float, lon: float) -> int:
 
     NOTE: this is the product's byte-scaled value, not metres. Converting to a
     true height needs the dataset's byte->metre scale/offset (TODO)."""
+    lon = _normalize_lon(lon)
     tile = _find_tile(lat, lon)
     row, col = tile.pixel_index(lat, lon)
     return int(tile.array[row, col])
@@ -249,12 +250,73 @@ Returns a map of landscape points that are within the given area,
 where lat_start, lon_start are the top left corner of the area.
 """
 def get_landscape_map(lat_start, lon_start, lat_end, lon_end):
-    # Single-tile window for now: the top-left corner selects the tile and the
-    # opposite corner is clamped to that tile's bounds. Cross-tile stitching is
-    # a TODO. Returns a read-only (rows, cols) uint8 view backed by the memmap.
-    tile = _find_tile(lat_start, _normalize_lon(lon_start))
-    r0, c0 = tile.pixel_index(lat_start, _normalize_lon(lon_start))
-    r1, c1 = tile.pixel_index(lat_end, _normalize_lon(lon_end))
-    row_lo, row_hi = sorted((r0, r1))
-    col_lo, col_hi = sorted((c0, c1))
-    return tile.array[row_lo:row_hi + 1, col_lo:col_hi + 1]
+    # Stitches across tile boundaries: the requested box may span the equator
+    # (north/south tiles), a 90 deg longitude seam, or wrap across the 0/360
+    # antimeridian. Returns a newly-assembled (rows, cols) uint8 array; pixels
+    # outside the mosaic's +-60 deg coverage are left as 0 (the GLD100 nodata).
+    #
+    # All tiles share one exact global equirectangular pixel grid (each band is
+    # exactly tile.width px per 90 deg lon and tile.height px per 60 deg lat),
+    # so we resolve everything in integer global pixel coordinates and copy the
+    # intersection of each tile with the request. Only the touched windows are
+    # read from the memmaps.
+    if not _LANDSCAPE_MAP:
+        load_map()
+    tiles = _LANDSCAPE_MAP
+    dppx = tiles[0].deg_per_px_x
+    dppy = tiles[0].deg_per_px_y
+    north_top = max(t.lat_max for t in tiles)
+    global_width = int(round(360.0 / dppx))
+    global_rows_total = max(int(round((north_top - t.lat_max) / dppy)) + t.height
+                            for t in tiles)
+
+    def to_col(lon):
+        # Expects lon already in [0, 360]; the 360 endpoint must map to the east
+        # edge rather than wrapping back to column 0.
+        return int(round(lon / dppx))
+
+    def to_row(lat):
+        return int(round((north_top - lat) / dppy))
+
+    # Row range (inclusive), clamped to the mosaic's latitude coverage.
+    lat_hi, lat_lo = max(lat_start, lat_end), min(lat_start, lat_end)
+    gr0 = min(max(to_row(lat_hi), 0), global_rows_total - 1)
+    gr1 = min(max(to_row(lat_lo), 0), global_rows_total - 1)
+    out_rows = gr1 - gr0 + 1
+
+    # Longitude segments, split so each is monotonic (handles 0/360 wrap).
+    span = lon_end - lon_start
+    if abs(span) >= 360.0:
+        segments = [(0.0, 360.0)]
+    else:
+        west, east = _normalize_lon(lon_start), _normalize_lon(lon_end)
+        segments = [(west, 360.0), (0.0, east)] if east < west else [(west, east)]
+
+    # Lay the segments out side by side across the output columns.
+    col_plan = []  # (global_col_start, global_col_end_inclusive, dst_col_start)
+    dst_col = 0
+    for west, east in segments:
+        gc0 = min(max(to_col(west), 0), global_width - 1)
+        gc1 = min(max(to_col(east), 0), global_width - 1)
+        if gc1 < gc0:
+            continue
+        col_plan.append((gc0, gc1, dst_col))
+        dst_col += gc1 - gc0 + 1
+    out_cols = dst_col
+
+    out = np.zeros((out_rows, out_cols), dtype=np.uint8)
+
+    for tile in tiles:
+        tgr0, tgc0 = to_row(tile.lat_max), to_col(tile.lon_min)
+        tgr1, tgc1 = tgr0 + tile.height - 1, tgc0 + tile.width - 1
+        rr0, rr1 = max(gr0, tgr0), min(gr1, tgr1)
+        if rr0 > rr1:
+            continue
+        for gc0, gc1, dcol in col_plan:
+            cc0, cc1 = max(gc0, tgc0), min(gc1, tgc1)
+            if cc0 > cc1:
+                continue
+            out[rr0 - gr0:rr1 - gr0 + 1,
+                dcol + cc0 - gc0:dcol + cc1 - gc0 + 1] = \
+                tile.array[rr0 - tgr0:rr1 - tgr0 + 1, cc0 - tgc0:cc1 - tgc0 + 1]
+    return out
