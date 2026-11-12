@@ -9,7 +9,7 @@ from .routers import positions
 Base.metadata.create_all(bind=engine)
 
 landscape_service.load_map()
-spice_service.load_lernels()
+spice_service.load_kernels()
 
 
 

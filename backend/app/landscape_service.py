@@ -1,9 +1,13 @@
 import math
+import os
 import struct
 from pathlib import Path
 
+from dotenv import load_dotenv, dotenv_values
 import numpy as np
 from numpy import sqrt
+
+_dotenv_map_var_name = "SHOULD_DOWNLOAD_MAP"
 
 _LANDSCAPE_MAP: "list[_Tile]" = []
 
@@ -174,12 +178,28 @@ def load_map(map_dir=None) -> "list[_Tile]":
     base = Path(map_dir) if map_dir is not None else _MAP_DIR
     paths = sorted(base.glob(_TILE_GLOB))
     if not paths:
-        raise FileNotFoundError(f"No GLD100 tiles ({_TILE_GLOB}) found in {base}")
+        dotenv_path = Path(__file__).resolve().parent.parent / ".env"
+        load_dotenv(dotenv_path=dotenv_path)
+        _SHOULD_DOWNLOAD_MAP = bool(os.getenv(_dotenv_map_var_name))
+        if _SHOULD_DOWNLOAD_MAP is not None and _SHOULD_DOWNLOAD_MAP:
+            _download_map_from_nasa_site()
+            paths = sorted(base.glob(_TILE_GLOB))
+        else:
+            print("No map found. Please download it from NASA site to have it available in the backend."
+                  " For now all functionality related to landscape will be disabled.")
+            return
 
     for path in paths:
         _LANDSCAPE_MAP.append(_Tile(**_read_tiff_metadata(path)))
     _MAP_LOADED = True
     return _LANDSCAPE_MAP
+
+
+def _download_map_from_nasa_site():
+    """Download the latest GLD100 map from the NASA site."""
+    """https://data.lroc.im-ldi.com/lroc/view_rdr/WAC_GLD100"""
+    pass
+
 
 
 def _normalize_lon(lon: float) -> float:
@@ -202,6 +222,9 @@ def get_elevation(lat: float, lon: float) -> int:
 
     NOTE: this is the product's byte-scaled value, not metres. Converting to a
     true height needs the dataset's byte->metre scale/offset (TODO)."""
+    if not _MAP_LOADED:
+        raise ValueError("Moon map is not present in folder.")
+
     lon = _normalize_lon(lon)
     tile = _find_tile(lat, lon)
     row, col = tile.pixel_index(lat, lon)
@@ -239,8 +262,8 @@ def get_obstruction_coefficient(lat, lon, azimuth, elevation, observer_alt_km=0)
     #    Sun elevation angle where sun stops being visible is atan(point.alt/distance to point) - sun size on the sky. Denote it as min_visibility_angle.
     #    angles_above_min = min_visibility_angle - sun_size_on_the_sky.
     #    max_obs_coefficient = angles_above_min / (sun_size) or previous max_obs_coefficient if it's larger.
-    #    If coefficient is <0, set in to 0. If coefficient is >1, set it to 1.
-    #    If at any point min_coefficient is <0, return 0.
+    #    If coefficient is < 0, set in to 0. If coefficient is > 1, set it to 1.
+    #    If at any point min_coefficient is < 0, return 0.
     #4. return coefficient -- we should return the maximum coefficient.
     return 1
 
@@ -260,6 +283,9 @@ def get_landscape_map(lat_start, lon_start, lat_end, lon_end):
     # so we resolve everything in integer global pixel coordinates and copy the
     # intersection of each tile with the request. Only the touched windows are
     # read from the memmaps.
+    if not _MAP_LOADED:
+        raise ValueError("Moon map is not present in folder.")
+
     if not _LANDSCAPE_MAP:
         load_map()
     tiles = _LANDSCAPE_MAP
