@@ -1,5 +1,6 @@
 # SPICE kernels (large binary files)
 /backend/kernels/
+/backend/moon-map/
 
 # IDE / tooling
 /.idea/

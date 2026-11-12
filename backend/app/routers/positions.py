@@ -6,7 +6,7 @@ router = APIRouter(prefix="/positions", tags=["positions"])
 
 
 @router.post("/surface", response_model=SurfaceQueryResponse)
-def surface_query(req: SurfaceQueryRequest):
+async def surface_query(req: SurfaceQueryRequest):
     try:
         raw = query_surface(req.utc, req.lat_deg, req.lon_deg, req.alt_km)
     except Exception as e:
@@ -32,7 +32,7 @@ def surface_query(req: SurfaceQueryRequest):
     )
 
 @router.get("/insolation")
-def insolation(req: InsolationRequest):
+async def insolation(req: InsolationRequest):
     try:
         series = calculate_insolation_series(req.utc_from, req.utc_to, req.lat_deg, req.lon_deg, req.step_s)
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
