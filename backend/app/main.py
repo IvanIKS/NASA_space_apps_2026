@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-import app.spice_service as spice_service
-import app.landscape_service as landscape_service
+import service.spice_service as spice_service
+import service.landscape_service as landscape_service
 from .database import engine, Base
 from .routers import positions
 

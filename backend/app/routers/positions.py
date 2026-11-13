@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from ..schemas import SurfaceQueryRequest, SurfaceQueryResponse, BodyResult, InsolationResult, InsolationRequest
-from ..spice_service import query_surface, calculate_insolation_series
+from service.spice_service import query_surface, calculate_insolation_series
 
 router = APIRouter(prefix="/positions", tags=["positions"])
 
