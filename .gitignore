@@ -1,6 +1,6 @@
 # SPICE kernels (large binary files)
 /backend/kernels/
-/backend/moon-map/
+/backend/moon-map-renamed/
 
 # IDE / tooling
 /.idea/
@@ -22,4 +22,4 @@ __pycache__/
 # OS
 .DS_Store
 
-.env
+backend/.env

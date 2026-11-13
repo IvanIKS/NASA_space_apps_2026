@@ -201,10 +201,10 @@ def _download_map_from_nasa_site():
     """Download the GLD100 mosaic tiles from the NASA LROC site into
     ``moon-map``.
 
-    https://data.lroc.im-ldi.com/lroc/view_rdr/WAC_GLD100
+    https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/EXTRAS/BROWSE/WAC_GLD100/
     """
 
-    file_server_url = "https://data.lroc.im-ldi.com/lroc/view_rdr_product/"
+    file_server_url = "https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/EXTRAS/BROWSE/WAC_GLD100/"
 
     required_map_addresses = [
         "WAC_GLD100_E300N2250_100M",
@@ -220,7 +220,9 @@ def _download_map_from_nasa_site():
     _MAP_DIR.mkdir(parents=True, exist_ok=True)
 
     for address in required_map_addresses:
-        url = file_server_url + address
+        # The BROWSE path serves the raster at "<name>.TIF" (and 302-redirects
+        # to NASA's S3 store, which urlopen follows automatically).
+        url = file_server_url + address + ".TIF"
         # Name the file so load_map()'s WAC_GLD100_*.TIF glob picks it up.
         dest = _MAP_DIR / f"{address}.TIF"
         if dest.exists():
@@ -231,6 +233,15 @@ def _download_map_from_nasa_site():
         tmp = dest.with_suffix(dest.suffix + ".part")
         try:
             with urllib.request.urlopen(url) as response, open(tmp, "wb") as fh:
+                # Fail loudly on an error/redirect page rather than saving HTML
+                # into a .TIF (which later trips the TIFF magic-byte check).
+                magic = response.read(2)
+                if magic not in (b"II", b"MM"):
+                    raise ValueError(
+                        f"{url} did not return a TIFF (first bytes {magic!r}); "
+                        f"got content-type {response.headers.get('Content-Type')!r}"
+                    )
+                fh.write(magic)
                 shutil.copyfileobj(response, fh)
             tmp.replace(dest)
         except Exception as exc:
