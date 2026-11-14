@@ -4,20 +4,11 @@ import { createGround } from "./ground";
 import { createCompass, createEarth, createSun, EARTH_LAYER } from "./sky";
 import { apparentRadius, azimuthToYaw, BODY_RADIUS_KM, skyDirection, skyPosition, yawToHeadingDeg } from "./skyMath";
 
-/** Radians of camera rotation per pixel of drag. */
 const LOOK_SPEED = 0.004;
-/** Stop just short of straight up/down so the horizon never flips. */
 const MAX_PITCH = Math.PI / 2 - 0.05;
 const EYE_HEIGHT = 1.7;
-/**
- * Lighting is deliberately schematic: the surface is always lit at a base level so the terrain
- * reads at any time (base × texture brightness), and the Sun adds directional light on top when
- * it is up. The physically meaningful illumination is the insolation figure in the panel.
- */
 const BASE_INTENSITY = 0.9;
-/** Sunlight on the Moon is either on or off: no atmosphere, so no dusk. */
 const SUN_INTENSITY = 1.4;
-/** Earthshine: a full Earth tints the lunar night slightly blue. */
 const EARTHSHINE_INTENSITY = 0.25;
 
 export interface SkyBodies {
@@ -27,7 +18,6 @@ export interface SkyBodies {
 
 export interface SkyScene {
   update(bodies: SkyBodies): void;
-  /** Turn the camera towards an azimuth/elevation, animated. */
   lookAt(azimuthDeg: number, elevationDeg: number): void;
   dispose(): void;
 }
@@ -37,11 +27,6 @@ interface Callbacks {
   onTextureError(): void;
 }
 
-/**
- * First-person scene standing on the lunar surface: textured ground lit by the Sun,
- * the Sun and Earth at their true azimuth/elevation and angular size, compass labels on the
- * horizon, and click-drag to look around.
- */
 export function createSkyScene(
   container: HTMLElement,
   latitudeDeg: number,
@@ -49,8 +34,6 @@ export function createSkyScene(
   { onHeading, onTextureError }: Callbacks
 ): SkyScene {
   const scene = new THREE.Scene();
-  // No scene.background: a Color background makes every render() force-clear, which would
-  // wipe the first of the two passes below. The clear colour is set on the renderer instead.
   scene.fog = new THREE.Fog(0x000000, 90, 230);
 
   const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 500);
@@ -60,25 +43,19 @@ export function createSkyScene(
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  // Filmic tone mapping keeps the sunlit regolith from clipping to flat white.
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  // Two render passes (see animate): layers select lights per pass, so the ground and Earth are lit independently.
   renderer.autoClear = false;
   renderer.setClearColor(0x000000, 1);
   container.appendChild(renderer.domElement);
   const canvas = renderer.domElement;
 
-  // --- lights -------------------------------------------------------------------------------
   const sunLight = new THREE.DirectionalLight(0xfff4e0, 0);
   const earthshine = new THREE.DirectionalLight(0x7fa6e6, 0);
-  // Base level: a hemisphere light (darker from below) keeps enough gradient for bumps to show.
   const base = new THREE.HemisphereLight(0xffffff, 0x666666, BASE_INTENSITY);
-  // Lights Earth only, always from the Sun's direction (see createEarth).
   const earthLight = new THREE.DirectionalLight(0xffffff, 3.5);
   earthLight.layers.set(EARTH_LAYER);
   scene.add(sunLight, sunLight.target, earthshine, earthshine.target, base, earthLight, earthLight.target);
 
-  // --- objects ------------------------------------------------------------------------------
   const ground = createGround(latitudeDeg, longitudeDeg, renderer.capabilities.getMaxAnisotropy(), onTextureError);
   const sun = createSun();
   const earth = createEarth();
@@ -87,9 +64,6 @@ export function createSkyScene(
   earth.mesh.visible = false;
   scene.add(ground.mesh, sun.group, earth.mesh, compass.group);
 
-  // --- look controls ------------------------------------------------------------------------
-  // Click-drag, Street View style: you grab the world and pull it, so dragging right turns
-  // the camera left. YXZ order keeps yaw level and pitch free of roll.
   let yaw = 0;
   let pitch = 0;
   let target: { yaw: number; pitch: number } | null = null;
@@ -129,7 +103,6 @@ export function createSkyScene(
   canvas.addEventListener("pointerup", onPointerUp);
   canvas.addEventListener("pointercancel", onPointerUp);
 
-  // --- sizing & render loop -----------------------------------------------------------------
   const resize = () => {
     const { clientWidth: width, clientHeight: height } = container;
     if (width === 0 || height === 0) return;
@@ -150,9 +123,6 @@ export function createSkyScene(
       if (Math.abs(target.yaw - yaw) < 1e-3 && Math.abs(target.pitch - pitch) < 1e-3) target = null;
       applyRotation();
     }
-    // three.js applies every light the camera can see to every object it draws, so the
-    // Earth-only light would wash out the ground. Draw the ground sky (layer 0, Sun + earthshine
-    // lights) first, then Earth (its own layer and light) over it, sharing the depth buffer.
     renderer.clear();
     camera.layers.set(0);
     renderer.render(scene, camera);
@@ -182,13 +152,11 @@ export function createSkyScene(
         earth.mesh.scale.setScalar(apparentRadius(BODY_RADIUS_KM.earth, earthBody.range_km));
         earthshine.position.copy(skyDirection(earthBody.azimuth_deg, earthBody.elevation_deg)).multiplyScalar(100);
       }
-      // Earthshine only shows at night; by day the Sun swamps it.
       const night = !sunBody || sunBody.elevation_deg <= 0;
       earthshine.intensity = night && earthBody && earthBody.elevation_deg > 0 ? EARTHSHINE_INTENSITY : 0;
     },
 
     lookAt(azimuthDeg, elevationDeg) {
-      // Take the short way round.
       let targetYaw = azimuthToYaw(azimuthDeg);
       targetYaw += Math.round((yaw - targetYaw) / (2 * Math.PI)) * 2 * Math.PI;
       target = {

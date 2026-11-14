@@ -2,16 +2,10 @@ import * as THREE from "three";
 import { TEXTURES } from "@/shared/config";
 import { MOON_RADIUS_KM } from "./skyMath";
 
-/** Side of the ground plane in scene units (≈ km); the fog hides its edge well before that. */
 const GROUND_SIZE = 500;
-/** Regolith grain: a small noise tile repeated across the plane so sunlight has something to shade. */
 const GRAIN_TILE = 256;
 const GRAIN_REPEAT = 120;
 
-/**
- * A flat plane whose UVs are remapped so the equirectangular LROC texture is centred on the
- * observer: each vertex's east/north offset is projected onto the sphere to find its lat/lon.
- */
 export function createGroundGeometry(latitudeDeg: number, longitudeDeg: number): THREE.PlaneGeometry {
   const geometry = new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE, 128, 128);
   const positions = geometry.getAttribute("position");
@@ -73,7 +67,6 @@ export function createGround(
 ): Ground {
   const geometry = createGroundGeometry(latitudeDeg, longitudeDeg);
   const grain = createGrainTexture();
-  // Near-white base: the colour comes from the LROC map, the shading from the Sun light.
   const material = new THREE.MeshStandardMaterial({ color: 0xd9d9d9, roughness: 1, bumpMap: grain, bumpScale: 0.5 });
   const mesh = new THREE.Mesh(geometry, material);
   mesh.rotation.x = -Math.PI / 2;

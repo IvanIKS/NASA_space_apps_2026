@@ -10,7 +10,6 @@ import { PointChips } from "./PointChips";
 
 interface Props {
   selection: Selection;
-  /** One query state per point in `selection.points`. */
   queries: SurfaceQueryState[];
   actions: SelectionActions;
 }
@@ -26,7 +25,6 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
   const [lon, setLon] = useState("");
   const [utc, setUtc] = useState(selection.utc);
 
-  // A click on the globe overwrites whatever is being typed.
   useEffect(() => {
     setLat(point ? String(point.lat) : "");
     setLon(point ? String(point.lon) : "");
@@ -37,7 +35,6 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
     e.preventDefault();
     actions.apply(
       lat && lon ? { lat: parseFloat(lat), lon: parseFloat(lon) } : null,
-      // datetime-local drops ":00" seconds; the backend wants the full HH:MM:SS.
       utc.length === 16 ? `${utc}:00` : utc
     );
   }

@@ -9,7 +9,6 @@ interface Props {
   actions: SelectionActions;
 }
 
-/** One chip per point: click to make it active, × to drop it; "Add point" arms the next globe click. */
 export function PointChips({ selection, actions }: Props) {
   const { points, active, adding } = selection;
   const full = points.length >= MAX_POINTS;

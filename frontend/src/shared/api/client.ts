@@ -1,4 +1,3 @@
-// nginx (prod) and the Vite dev proxy both forward /api/* to the FastAPI backend.
 const BASE = "/api";
 
 export async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
@@ -12,7 +11,6 @@ export async function postJson<T>(path: string, body: unknown, signal?: AbortSig
   return res.json();
 }
 
-// FastAPI returns { detail: string } for 400 and { detail: [{ msg }] } for 422.
 async function readError(res: Response): Promise<string> {
   const text = await res.text();
   try {
@@ -20,7 +18,6 @@ async function readError(res: Response): Promise<string> {
     if (typeof detail === "string") return detail;
     if (Array.isArray(detail)) return detail.map((d) => d.msg).join("; ");
   } catch {
-    // not JSON — fall through to raw text
   }
   return text || `HTTP ${res.status}`;
 }

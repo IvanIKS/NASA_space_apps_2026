@@ -28,7 +28,6 @@ export interface InsolationSeries {
 }
 
 interface Props {
-  /** One or more series sampled at the same times (same request time), so they share the x axis. */
   series: InsolationSeries[];
   currentUtc: string;
 }
@@ -37,7 +36,6 @@ const NOW = "#55aaff";
 const AXIS = "#3a4250";
 const LABEL = "#8a93a3";
 
-// "2026-09-18T16:30:57" → "09-18 16:30"
 const shortUtc = (utc: string) => utc.slice(5, 16).replace("T", " ");
 
 export function InsolationChart({ series, currentUtc }: Props) {
@@ -57,8 +55,6 @@ export function InsolationChart({ series, currentUtc }: Props) {
 
   useEffect(() => {
     const axis = series[0]?.data ?? [];
-    // The series is evenly sampled, so a category axis of the backend's own UTC strings is exact.
-    // Both sides use the same ISO format, so a string comparison finds the "now" sample.
     const nowIdx = axis.findIndex((d) => d.utc >= currentUtc);
     const multi = series.length > 1;
     chartRef.current?.setOption(
@@ -85,7 +81,6 @@ export function InsolationChart({ series, currentUtc }: Props) {
           axisLabel: { color: LABEL },
           splitLine: { lineStyle: { color: "#1c222c" } },
         },
-        // Wheel/pinch zoom only; the slider's thumbnail of the series confused people.
         dataZoom: [{ type: "inside" }],
         series: series.map((s, i) => ({
           type: "line",
@@ -95,7 +90,6 @@ export function InsolationChart({ series, currentUtc }: Props) {
           sampling: "lttb",
           color: s.color,
           lineStyle: { width: 1.5 },
-          // A fill reads well for one curve; several fills just hide each other.
           areaStyle: multi ? undefined : { opacity: 0.15 },
           markLine:
             i === 0 && nowIdx >= 0
@@ -104,7 +98,6 @@ export function InsolationChart({ series, currentUtc }: Props) {
                   silent: true,
                   lineStyle: { color: NOW, type: "dashed" },
                   label: { formatter: "now", color: NOW },
-                  // The category string, not the index: with lttb sampling an index is ambiguous.
                   data: [{ xAxis: axis[nowIdx].utc }],
                 }
               : undefined,

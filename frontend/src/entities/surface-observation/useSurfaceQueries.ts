@@ -12,12 +12,6 @@ const LOADING: SurfaceQueryState = { data: null, loading: true, error: null };
 
 const keyOf = (p: LatLon, utc: string) => `${p.lat},${p.lon}@${utc}`;
 
-/**
- * Fetches /positions/surface for every point at the shared time, one result per point in the
- * same order. Results are cached by (point, time), so adding a point or switching the active one
- * only requests what is new; changing the time refetches all of them. Requests for points that
- * disappear from the list are aborted.
- */
 export function useSurfaceQueries(points: LatLon[], utc: string): SurfaceQueryState[] {
   const [results, setResults] = useState<Record<string, SurfaceQueryState>>({});
   const inflight = useRef(new Map<string, AbortController>());
@@ -36,7 +30,6 @@ export function useSurfaceQueries(points: LatLon[], utc: string): SurfaceQuerySt
           if (!ctrl.signal.aborted) setResults((r) => ({ ...r, [key]: { data: null, loading: false, error: e.message } }));
         })
         .finally(() => {
-          // Only clear our own entry: an aborted request may settle after a newer one took the key.
           if (inflight.current.get(key) === ctrl) inflight.current.delete(key);
         });
     }
@@ -46,12 +39,10 @@ export function useSurfaceQueries(points: LatLon[], utc: string): SurfaceQuerySt
         inflight.current.delete(key);
       }
     }
-    // Keep the cache to what is on screen, so a time change does not pile up old series.
     setResults((r) => {
       const kept = Object.fromEntries(Object.entries(r).filter(([k]) => keys.includes(k)));
       return Object.keys(kept).length === Object.keys(r).length ? r : kept;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature]);
 
   useEffect(() => {

@@ -16,7 +16,6 @@ interface Pin extends LatLon {
   active: boolean;
 }
 
-// Reference features: they make it easy to see that texture and coordinates line up.
 const LANDMARKS = [
   { name: "Tycho", lat: -43.31, lon: -11.36 },
   { name: "Copernicus", lat: 9.62, lon: -20.08 },
@@ -26,10 +25,6 @@ const LANDMARKS = [
 
 const hexToRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ");
 
-// A map-style pin in screen space, so it stays the same size at any zoom and reads
-// against the bright regolith. The outer div is a zero-size anchor at the coordinate;
-// the SVG hangs above it so the pin's tip sits exactly on the point. The active pin is
-// larger; the others are clickable to make them active.
 function createPin(pin: Pin, onActivate: (index: number) => void): HTMLElement {
   const el = document.createElement("div");
   el.className = "size-0 transition-opacity";
@@ -70,8 +65,6 @@ export function MoonGlobe({ points, active, onSelect, onActivate }: Props) {
     return () => ro.disconnect();
   }, []);
 
-  // Turn the active point towards the camera, keeping the current zoom.
-  // The first positioning (a point restored from the URL) is instant.
   const positionedRef = useRef(false);
   const point = points[active];
   useEffect(() => {
@@ -89,7 +82,6 @@ export function MoonGlobe({ points, active, onSelect, onActivate }: Props) {
           ref={globeRef}
           width={size.width}
           height={size.height}
-          // The default zoom-in animation fights with pointOfView() on load.
           animateIn={false}
           backgroundColor="#000000"
           globeImageUrl={TEXTURES.color}

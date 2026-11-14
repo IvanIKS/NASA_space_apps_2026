@@ -16,14 +16,12 @@ interface SkyViewProps {
 const CARDINALS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 const cardinal = (headingDeg: number) => CARDINALS[Math.round(headingDeg / 45) % 8];
 
-/** First-person view standing at a point on the Moon. Fills its positioned parent. */
 export default function SkyView({ earth, sun, latitudeDeg, longitudeDeg }: SkyViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SkyScene | null>(null);
   const [heading, setHeading] = useState(0);
   const [textureError, setTextureError] = useState(false);
 
-  // One scene per standing point; the ground texture is remapped around it.
   useEffect(() => {
     const scene = createSkyScene(containerRef.current!, latitudeDeg, longitudeDeg, {
       onHeading: setHeading,

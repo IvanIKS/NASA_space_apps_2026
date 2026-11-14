@@ -8,21 +8,15 @@ import { SkyView } from "@/widgets/sky-view";
 
 interface Props {
   selection: Selection;
-  /** One query state per point in `selection.points`. */
   queries: SurfaceQueryState[];
   actions: SelectionActions;
 }
 
-/**
- * Main page: the map column on the left shows either the globe with every point pinned, or the
- * first-person view at the active point; the analytics panel on the right stays put in both.
- */
 export function ObserverPage({ selection, queries, actions }: Props) {
   const point = activePoint(selection);
   const query = queries[selection.active];
   const surface = selection.view === "surface" && point !== null;
 
-  // Esc leaves the surface view, like closing a Street View panorama, or cancels adding a point.
   useEffect(() => {
     if (!surface && !selection.adding) return;
     const onKey = (e: KeyboardEvent) => {

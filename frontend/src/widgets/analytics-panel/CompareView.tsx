@@ -26,7 +26,6 @@ interface Row {
   next: string;
 }
 
-/** Side-by-side numbers for every point at the shared time, plus their insolation curves overlaid. */
 export function CompareView({ queries, utc }: Props) {
   const rows = useMemo<(Row | null)[]>(
     () =>
@@ -46,7 +45,6 @@ export function CompareView({ queries, utc }: Props) {
     [queries, utc]
   );
   const loaded = rows.filter((r): r is Row => r !== null);
-  // The best value in a column, or NaN when every point ties: bolding all of them says nothing.
   const best = (key: "sunEl" | "watts" | "lit") => {
     const values = loaded.map((r) => r[key]);
     const max = Math.max(...values);

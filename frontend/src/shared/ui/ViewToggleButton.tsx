@@ -9,7 +9,6 @@ interface Props extends ComponentProps<typeof Button> {
   icon: keyof typeof ICONS;
 }
 
-/** Google-Maps-style pill in the bottom-right corner that switches between the globe and the surface view. */
 export function ViewToggleButton({ icon, className, children, ...rest }: Props) {
   const Icon = ICONS[icon];
   return (

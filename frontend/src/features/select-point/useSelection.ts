@@ -2,25 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { MAX_POINTS } from "@/shared/config";
 import { nowUtc, roundCoord, type LatLon } from "@/shared/lib";
 
-/** "globe" is the map page; "surface" is the first-person view from the active point. */
 export type ViewMode = "globe" | "surface";
 
 export interface Selection {
-  /** Up to MAX_POINTS points, all evaluated at the same `utc` so they can be compared. */
   points: LatLon[];
-  /** Index into `points` of the point the form, the pin animation and the surface view follow. */
   active: number;
-  /** UTC in the backend's format: YYYY-MM-DDTHH:MM:SS, no timezone suffix. */
   utc: string;
   view: ViewMode;
-  /** True while "Add point" is waiting for a click: the next pick becomes a new point instead of moving the active one. */
   adding: boolean;
 }
 
 export interface SelectionActions {
-  /** A click on the globe (or a typed coordinate): moves the active point, or adds one while `adding`. */
   place(point: LatLon): void;
-  /** Form submit: the active point's coordinates and the shared time. */
   apply(point: LatLon | null, utc: string): void;
   activate(index: number): void;
   remove(index: number): void;
@@ -29,7 +22,6 @@ export interface SelectionActions {
   toggleView(): void;
 }
 
-/** "A", "B", "C", … — short labels for pins, chips and chart legends. */
 export const pointLabel = (index: number) => String.fromCharCode(65 + index);
 
 export const activePoint = (s: Selection): LatLon | null => s.points[s.active] ?? null;
@@ -42,7 +34,6 @@ function parsePoints(params: URLSearchParams): LatLon[] {
     const [lat, lon] = pair.split(",").map(parseFloat);
     if (Number.isFinite(lat) && Number.isFinite(lon)) points.push({ lat, lon });
   }
-  // Links from before multi-point support carried a single lat/lon.
   const lat = parseFloat(params.get("lat") ?? "");
   const lon = parseFloat(params.get("lon") ?? "");
   if (points.length === 0 && Number.isFinite(lat) && Number.isFinite(lon)) points.push({ lat, lon });
@@ -57,7 +48,6 @@ function readUrl(): Selection {
     points,
     active,
     utc: params.get("utc") ?? nowUtc(),
-    // The surface view needs a point to stand on.
     view: points.length > 0 && params.get("view") === "surface" ? "surface" : "globe",
     adding: false,
   };
@@ -83,7 +73,6 @@ function withPoint(s: Selection, point: LatLon): Selection {
   return { ...s, points: s.points.map((q, i) => (i === s.active ? p : q)) };
 }
 
-/** Selected points, time and view, mirrored into the URL so a comparison can be shared by link. */
 export function useSelection(): [Selection, SelectionActions] {
   const [selection, setSelection] = useState(readUrl);
 

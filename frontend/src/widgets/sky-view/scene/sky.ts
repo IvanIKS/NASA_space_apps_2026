@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { skyPosition } from "./skyMath";
 
-/** Objects on this layer are lit only by lights on the same layer (used to light Earth independently of the ground). */
 export const EARTH_LAYER = 1;
 
 function createRadialTexture(stops: [number, string][]): THREE.CanvasTexture {
@@ -18,12 +17,10 @@ function createRadialTexture(stops: [number, string][]): THREE.CanvasTexture {
 
 export interface SunObject {
   group: THREE.Group;
-  /** Scale both parts to the Sun's apparent radius on the sky shell. */
   setRadius(radius: number): void;
   dispose(): void;
 }
 
-/** The Sun: a white disc at its true angular size plus a soft additive glare so it reads at any size. */
 export function createSun(): SunObject {
   const group = new THREE.Group();
   const discGeometry = new THREE.SphereGeometry(1, 24, 16);
@@ -65,11 +62,6 @@ export interface EarthObject {
   dispose(): void;
 }
 
-/**
- * Earth as a lit sphere on its own layer: the Earth light always points from the Sun, so the
- * phase is right even when the Sun is below the Moon's horizon. A faint emissive keeps the
- * night side from vanishing.
- */
 export function createEarth(): EarthObject {
   const geometry = new THREE.SphereGeometry(1, 32, 24);
   const material = new THREE.MeshStandardMaterial({
@@ -109,7 +101,6 @@ function createTextSprite(text: string): THREE.Sprite {
   return sprite;
 }
 
-/** N / E / S / W just above the horizon, so you can relate what you see to the azimuths in the panel. */
 export function createCompass(): { group: THREE.Group; dispose(): void } {
   const group = new THREE.Group();
   const sprites = (["N", "E", "S", "W"] as const).map((label, i) => {
