@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LatLon } from "@/shared/lib";
-import { querySurface, type SurfaceQueryResponse } from "./api";
+import { queryObservation, type SurfaceQueryResponse } from "./api";
 
 export interface SurfaceQueryState {
   data: SurfaceQueryResponse | null;
@@ -26,7 +26,7 @@ export function useSurfaceQueries(points: LatLon[], utc: string, days: number, r
       inflight.current.set(key, ctrl);
       if (cached) setResults((r) => ({ ...r, [key]: { data: null, loading: true, error: null } }));
       const { lat, lon } = points[i];
-      querySurface(utc, lat, lon, days, 0, ctrl.signal)
+      queryObservation(utc, days, lat, lon, ctrl.signal)
         .then((data) => setResults((r) => ({ ...r, [key]: { data, loading: false, error: null } })))
         .catch((e: Error) => {
           if (!ctrl.signal.aborted) setResults((r) => ({ ...r, [key]: { data: null, loading: false, error: e.message } }));
