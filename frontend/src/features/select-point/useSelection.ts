@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MAX_POINTS } from "@/shared/config";
+import { DEFAULT_GRAPH_DAYS, GRAPH_WINDOWS_DAYS, MAX_POINTS } from "@/shared/config";
 import { nowUtc, roundCoord, type LatLon } from "@/shared/lib";
 
 export type ViewMode = "globe" | "surface";
@@ -8,6 +8,7 @@ export interface Selection {
   points: LatLon[];
   active: number;
   utc: string;
+  days: number;
   view: ViewMode;
   adding: boolean;
   revision: number;
@@ -21,6 +22,7 @@ export interface SelectionActions {
   startAdd(): void;
   cancelAdd(): void;
   toggleView(): void;
+  setDays(days: number): void;
 }
 
 export const pointLabel = (index: number) => String.fromCharCode(65 + index);
@@ -41,6 +43,11 @@ function parsePoints(params: URLSearchParams): LatLon[] {
   return points.slice(0, MAX_POINTS);
 }
 
+function parseDays(raw: string | null): number {
+  const days = parseInt(raw ?? "", 10);
+  return (GRAPH_WINDOWS_DAYS as readonly number[]).includes(days) ? days : DEFAULT_GRAPH_DAYS;
+}
+
 function readUrl(): Selection {
   const params = new URLSearchParams(window.location.search);
   const points = parsePoints(params);
@@ -49,6 +56,7 @@ function readUrl(): Selection {
     points,
     active,
     utc: params.get("utc") ?? nowUtc(),
+    days: parseDays(params.get("days")),
     view: points.length > 0 && params.get("view") === "surface" ? "surface" : "globe",
     adding: false,
     revision: 0,
@@ -62,6 +70,7 @@ function writeUrl(s: Selection) {
     if (s.active > 0) params.set("active", String(s.active));
   }
   params.set("utc", s.utc);
+  if (s.days !== DEFAULT_GRAPH_DAYS) params.set("days", String(s.days));
   if (s.view !== "globe") params.set("view", s.view);
   window.history.replaceState(null, "", `?${params}`);
 }
@@ -94,6 +103,7 @@ export function useSelection(): [Selection, SelectionActions] {
         }),
       startAdd: () => setSelection((s) => (s.points.length < MAX_POINTS ? { ...s, adding: true, view: "globe" } : s)),
       cancelAdd: () => setSelection((s) => ({ ...s, adding: false })),
+      setDays: (days) => setSelection((s) => ({ ...s, days })),
       toggleView: () =>
         setSelection((s) => ({ ...s, view: s.view === "surface" ? "globe" : "surface", adding: false })),
     }),

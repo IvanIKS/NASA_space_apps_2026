@@ -6,6 +6,7 @@ import { POINT_COLORS } from "@/shared/config";
 import { cn, formatDeg as deg, nowUtc } from "@/shared/lib";
 import { Button, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui";
 import { CompareView } from "./CompareView";
+import { GraphWindow } from "./GraphWindow";
 import { PointChips } from "./PointChips";
 
 interface Props {
@@ -89,10 +90,10 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
           </TabsList>
           {!canCompare && <p className="m-0 text-xs text-muted-foreground">Add a second point to compare.</p>}
           <TabsContent value="point">
-            <PointView query={query} utc={selection.utc} color={color} />
+            <PointView query={query} utc={selection.utc} color={color} days={selection.days} onDays={actions.setDays} />
           </TabsContent>
           <TabsContent value="compare">
-            <CompareView queries={queries} utc={selection.utc} />
+            <CompareView queries={queries} utc={selection.utc} days={selection.days} onDays={actions.setDays} />
           </TabsContent>
         </Tabs>
       )}
@@ -100,7 +101,15 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
   );
 }
 
-function PointView({ query, utc, color }: { query: SurfaceQueryState; utc: string; color: string }) {
+interface PointViewProps {
+  query: SurfaceQueryState;
+  utc: string;
+  color: string;
+  days: number;
+  onDays: (days: number) => void;
+}
+
+function PointView({ query, utc, color, days, onDays }: PointViewProps) {
   const { data, loading, error } = query;
   const series = useMemo<InsolationSeries[]>(
     () => (data ? [{ name: "Illumination", color, data: data.insolation.insolation_graph }] : []),
@@ -130,13 +139,16 @@ function PointView({ query, utc, color }: { query: SurfaceQueryState; utc: strin
         </tbody>
       </table>
 
-      <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Illumination</h3>
+      <div className="mt-5 mb-1 flex items-center justify-between">
+        <h3 className="m-0 font-medium text-muted-foreground">Illumination</h3>
+        <GraphWindow days={days} onChange={onDays} />
+      </div>
       <p className="m-0 text-2xl tabular-nums">
         {data.insolation.insolation_watts.toFixed(1)}{" "}
         <span className="text-[13px] text-muted-foreground">W/m² now</span>
       </p>
       <InsolationChart series={series} currentUtc={utc} />
-      <p className="mt-1 text-xs text-muted-foreground">±1 lunar day around the selected time, hourly samples.</p>
+      <p className="mt-1 text-xs text-muted-foreground">{days} days around the selected time, hourly samples.</p>
     </div>
   );
 }
