@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { LatLon } from "@/shared/lib";
 import { querySurface, type SurfaceQueryResponse } from "./api";
 
@@ -24,6 +24,7 @@ export function useSurfaceQueries(points: LatLon[], utc: string, revision = 0): 
       if ((cached && !cached.error) || inflight.current.has(key)) continue;
       const ctrl = new AbortController();
       inflight.current.set(key, ctrl);
+      if (cached) setResults((r) => ({ ...r, [key]: { data: null, loading: true, error: null } }));
       const { lat, lon } = points[i];
       querySurface(utc, lat, lon, 0, ctrl.signal)
         .then((data) => setResults((r) => ({ ...r, [key]: { data, loading: false, error: null } })))
@@ -63,5 +64,8 @@ export function useSurfaceQueries(points: LatLon[], utc: string, revision = 0): 
     };
   }, []);
 
-  return points.map((p, i) => results[keys[i]] ?? { data: previous[pointKey(p)] ?? null, loading: true, error: null });
+  return useMemo(
+    () => points.map((p, i) => results[keys[i]] ?? { data: previous[pointKey(p)] ?? null, loading: true, error: null }),
+    [results, previous, signature]
+  );
 }

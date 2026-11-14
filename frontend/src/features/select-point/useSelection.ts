@@ -94,7 +94,8 @@ export function useSelection(): [Selection, SelectionActions] {
         }),
       startAdd: () => setSelection((s) => (s.points.length < MAX_POINTS ? { ...s, adding: true, view: "globe" } : s)),
       cancelAdd: () => setSelection((s) => ({ ...s, adding: false })),
-      toggleView: () => setSelection((s) => ({ ...s, view: s.view === "surface" ? "globe" : "surface" })),
+      toggleView: () =>
+        setSelection((s) => ({ ...s, view: s.view === "surface" ? "globe" : "surface", adding: false })),
     }),
     []
   );

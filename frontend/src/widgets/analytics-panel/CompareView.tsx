@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   formatHours,
   hoursBetween,
@@ -26,11 +26,24 @@ interface Row {
   next: string;
 }
 
+interface Snapshot {
+  queries: SurfaceQueryState[];
+  utc: string;
+}
+
 export function CompareView({ queries, utc }: Props) {
+  const settled = queries.every((q) => !q.loading);
+  const [snapshot, setSnapshot] = useState<Snapshot>({ queries, utc });
+  useEffect(() => {
+    if (settled) setSnapshot({ queries, utc });
+  }, [settled, queries, utc]);
+  const shown = settled ? { queries, utc } : snapshot;
+
   const rows = useMemo<(Row | null)[]>(
     () =>
-      queries.map(({ data, loading }, index) => {
-        if (!data || loading) return null;
+      shown.queries.map(({ data }, index) => {
+        if (!data) return null;
+        const utc = shown.utc;
         const graph = data.insolation.insolation_graph;
         const t = nextTransition(graph, utc);
         return {
@@ -42,7 +55,7 @@ export function CompareView({ queries, utc }: Props) {
           next: t ? `${t.kind === "sunrise" ? "↑" : "↓"} ${formatHours(hoursBetween(utc, t.utc))}` : "—",
         };
       }),
-    [queries, utc]
+    [shown]
   );
   const loaded = rows.filter((r): r is Row => r !== null);
   const best = (key: "sunEl" | "watts" | "lit") => {
@@ -53,17 +66,18 @@ export function CompareView({ queries, utc }: Props) {
   const bestSunEl = best("sunEl");
   const bestWatts = best("watts");
   const bestLit = best("lit");
-  const series = useMemo<InsolationSeries[]>(() => {
-    const toSeries = (q: SurfaceQueryState, index: number): InsolationSeries[] =>
-      q.data ? [{ name: pointLabel(index), color: POINT_COLORS[index], data: q.data.insolation.insolation_graph }] : [];
-    const fresh = queries.flatMap((q, index) => (q.loading ? [] : toSeries(q, index)));
-    return fresh.length > 0 ? fresh : queries.flatMap(toSeries);
-  }, [queries]);
+  const series = useMemo<InsolationSeries[]>(
+    () =>
+      shown.queries.flatMap((q, index) =>
+        q.data ? [{ name: pointLabel(index), color: POINT_COLORS[index], data: q.data.insolation.insolation_graph }] : []
+      ),
+    [shown]
+  );
 
   const hi = (on: boolean) => cn("py-1.5 text-right", on && "font-semibold text-foreground");
 
   return (
-    <div>
+    <div className={cn("transition-opacity", !settled && "opacity-50")}>
       <table className="w-full border-collapse text-xs tabular-nums">
         <thead>
           <tr className="text-muted-foreground">
@@ -77,7 +91,7 @@ export function CompareView({ queries, utc }: Props) {
         </thead>
         <tbody className="text-muted-foreground">
           {rows.map((r, index) => (
-            <tr key={index} className={cn("border-t border-border transition-opacity", queries[index].loading && "opacity-50")}>
+            <tr key={index} className="border-t border-border">
               <td className="py-1.5">
                 <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
                   <span className="size-2 rounded-full" style={{ background: POINT_COLORS[index] }} />
@@ -94,7 +108,7 @@ export function CompareView({ queries, utc }: Props) {
                 </>
               ) : (
                 <td className="py-1.5 text-right" colSpan={5}>
-                  {queries[index].error ? <span className="text-destructive">error</span> : "…"}
+                  {shown.queries[index].error ? <span className="text-destructive">error</span> : "…"}
                 </td>
               )}
             </tr>
@@ -109,7 +123,7 @@ export function CompareView({ queries, utc }: Props) {
       {series.length > 0 && (
         <>
           <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Illumination</h3>
-          <InsolationChart series={series} currentUtc={utc} />
+          <InsolationChart series={series} currentUtc={shown.utc} />
           <p className="mt-1 text-xs text-muted-foreground">±1 lunar day around the selected time, hourly samples.</p>
         </>
       )}

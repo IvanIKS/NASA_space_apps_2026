@@ -32,7 +32,7 @@ interface Props {
   currentUtc: string;
 }
 
-const NOW = "#55aaff";
+const NOW = "#e6e8ec";
 const AXIS = "#3a4250";
 const LABEL = "#8a93a3";
 
