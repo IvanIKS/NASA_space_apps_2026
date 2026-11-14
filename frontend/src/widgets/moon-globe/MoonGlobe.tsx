@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Globe, { type GlobeMethods } from "react-globe.gl";
-import { ACCENT_COLOR as ACCENT, TEXTURES } from "@/shared/config";
+import { pointLabel } from "@/features/select-point";
+import { POINT_COLORS, TEXTURES } from "@/shared/config";
 import type { LatLon } from "@/shared/lib";
 
 interface Props {
-  point: LatLon | null;
+  points: LatLon[];
+  active: number;
   onSelect: (point: LatLon) => void;
+  onActivate: (index: number) => void;
+}
+
+interface Pin extends LatLon {
+  index: number;
+  active: boolean;
 }
 
 // Reference features: they make it easy to see that texture and coordinates line up.
@@ -16,28 +24,41 @@ const LANDMARKS = [
   { name: "Shackleton", lat: -89.67, lon: 129.78 },
 ];
 
+const hexToRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ");
+
 // A map-style pin in screen space, so it stays the same size at any zoom and reads
 // against the bright regolith. The outer div is a zero-size anchor at the coordinate;
-// the SVG hangs above it so the pin's tip sits exactly on the point.
-function createPin(): HTMLElement {
+// the SVG hangs above it so the pin's tip sits exactly on the point. The active pin is
+// larger; the others are clickable to make them active.
+function createPin(pin: Pin, onActivate: (index: number) => void): HTMLElement {
   const el = document.createElement("div");
-  el.className = "size-0 pointer-events-none transition-opacity";
+  el.className = "size-0 transition-opacity";
+  const scale = pin.active ? 1 : 0.78;
   el.innerHTML = `
-    <svg viewBox="0 0 28 40" width="28" height="40" aria-hidden="true"
-         class="absolute bottom-0 left-0 -translate-x-1/2 drop-shadow-[0_2px_3px_rgba(0,0,0,0.7)]">
+    <svg viewBox="0 0 28 40" width="${28 * scale}" height="${40 * scale}" aria-label="Point ${pointLabel(pin.index)}"
+         class="absolute bottom-0 left-0 -translate-x-1/2 cursor-pointer drop-shadow-[0_2px_3px_rgba(0,0,0,0.7)]">
       <path d="M14 39C14 39 2 23.5 2 14a12 12 0 0 1 24 0c0 9.5-12 25-12 25z"
-            fill="${ACCENT}" stroke="#1a1200" stroke-width="2" stroke-linejoin="round"/>
-      <circle cx="14" cy="14" r="4.5" fill="#1a1200"/>
+            fill="${POINT_COLORS[pin.index]}" stroke="#1a1200" stroke-width="2" stroke-linejoin="round"/>
+      <text x="14" y="18.5" text-anchor="middle" font-size="13" font-weight="700" font-family="system-ui, sans-serif" fill="#1a1200">${pointLabel(pin.index)}</text>
     </svg>`;
+  el.firstElementChild!.addEventListener("click", (e) => {
+    e.stopPropagation();
+    onActivate(pin.index);
+  });
   return el;
 }
 
-export function MoonGlobe({ point, onSelect }: Props) {
+export function MoonGlobe({ points, active, onSelect, onActivate }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeMethods>();
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [ready, setReady] = useState(false);
-  const marker = useMemo(() => (point ? [point] : []), [point]);
+  const pins = useMemo<Pin[]>(
+    () => points.map((p, index) => ({ ...p, index, active: index === active })),
+    [points, active]
+  );
+  const activePin = useMemo(() => pins.filter((p) => p.active), [pins]);
+  const ringColor = POINT_COLORS[active] ?? POINT_COLORS[0];
 
   useEffect(() => {
     const el = wrapRef.current!;
@@ -49,9 +70,10 @@ export function MoonGlobe({ point, onSelect }: Props) {
     return () => ro.disconnect();
   }, []);
 
-  // Turn the selected point towards the camera, keeping the current zoom.
+  // Turn the active point towards the camera, keeping the current zoom.
   // The first positioning (a point restored from the URL) is instant.
   const positionedRef = useRef(false);
+  const point = points[active];
   useEffect(() => {
     const globe = globeRef.current;
     if (!ready || !globe || !point) return;
@@ -76,17 +98,17 @@ export function MoonGlobe({ point, onSelect }: Props) {
           showGraticules
           onGlobeReady={() => setReady(true)}
           onGlobeClick={({ lat, lng }) => onSelect({ lat, lon: lng })}
-          htmlElementsData={marker}
+          htmlElementsData={pins}
           htmlLat="lat"
           htmlLng="lon"
           htmlAltitude={0.005}
-          htmlElement={createPin}
+          htmlElement={(d) => createPin(d as Pin, onActivate)}
           htmlElementVisibilityModifier={(el, visible) => { el.style.opacity = visible ? "1" : "0"; }}
           htmlTransitionDuration={0}
-          ringsData={marker}
+          ringsData={activePin}
           ringLat="lat"
           ringLng="lon"
-          ringColor={() => (t: number) => `rgba(245, 160, 0, ${0.9 * (1 - t)})`}
+          ringColor={() => (t: number) => `rgba(${hexToRgb(ringColor)}, ${0.9 * (1 - t)})`}
           ringMaxRadius={5}
           ringPropagationSpeed={2.5}
           ringRepeatPeriod={1000}
