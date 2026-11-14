@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Globe, { type GlobeMethods } from "react-globe.gl";
 import { pointLabel } from "@/features/select-point";
 import { POINT_COLORS, TEXTURES } from "@/shared/config";
@@ -31,12 +31,16 @@ function createPin(pin: Pin, onActivate: (index: number) => void): HTMLElement {
   const scale = pin.active ? 1 : 0.78;
   el.innerHTML = `
     <svg viewBox="0 0 28 40" width="${28 * scale}" height="${40 * scale}" aria-label="Point ${pointLabel(pin.index)}"
-         class="absolute bottom-0 left-0 -translate-x-1/2 cursor-pointer drop-shadow-[0_2px_3px_rgba(0,0,0,0.7)]">
+         class="pointer-events-auto absolute bottom-0 left-0 -translate-x-1/2 cursor-pointer drop-shadow-[0_2px_3px_rgba(0,0,0,0.7)]">
       <path d="M14 39C14 39 2 23.5 2 14a12 12 0 0 1 24 0c0 9.5-12 25-12 25z"
             fill="${POINT_COLORS[pin.index]}" stroke="#1a1200" stroke-width="2" stroke-linejoin="round"/>
       <text x="14" y="18.5" text-anchor="middle" font-size="13" font-weight="700" font-family="system-ui, sans-serif" fill="#1a1200">${pointLabel(pin.index)}</text>
     </svg>`;
-  el.firstElementChild!.addEventListener("click", (e) => {
+  const svg = el.firstElementChild!;
+  for (const type of ["pointerdown", "pointerup", "mousedown", "mouseup"]) {
+    svg.addEventListener(type, (e) => e.stopPropagation());
+  }
+  svg.addEventListener("click", (e) => {
     e.stopPropagation();
     onActivate(pin.index);
   });
@@ -53,6 +57,7 @@ export function MoonGlobe({ points, active, onSelect, onActivate }: Props) {
     [points, active]
   );
   const activePin = useMemo(() => pins.filter((p) => p.active), [pins]);
+  const pinElement = useCallback((d: object) => createPin(d as Pin, onActivate), [onActivate]);
   const ringColor = POINT_COLORS[active] ?? POINT_COLORS[0];
 
   useEffect(() => {
@@ -94,7 +99,7 @@ export function MoonGlobe({ points, active, onSelect, onActivate }: Props) {
           htmlLat="lat"
           htmlLng="lon"
           htmlAltitude={0.005}
-          htmlElement={(d) => createPin(d as Pin, onActivate)}
+          htmlElement={pinElement}
           htmlElementVisibilityModifier={(el, visible) => { el.style.opacity = visible ? "1" : "0"; }}
           htmlTransitionDuration={0}
           ringsData={activePin}

@@ -1,5 +1,5 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { InsolationChart } from "@/entities/insolation";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { InsolationChart, type InsolationSeries } from "@/entities/insolation";
 import type { SurfaceQueryState } from "@/entities/surface-observation";
 import { activePoint, pointLabel, type Selection, type SelectionActions } from "@/features/select-point";
 import { POINT_COLORS } from "@/shared/config";
@@ -26,10 +26,11 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
   const [utc, setUtc] = useState(selection.utc);
 
   useEffect(() => {
-    setLat(point ? String(point.lat) : "");
-    setLon(point ? String(point.lon) : "");
+    const prefill = point && !selection.adding;
+    setLat(prefill ? String(point.lat) : "");
+    setLon(prefill ? String(point.lon) : "");
     setUtc(selection.utc);
-  }, [point, selection.utc]);
+  }, [point, selection.utc, selection.adding]);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -50,12 +51,12 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
       <form className="grid grid-cols-2 gap-2.5" onSubmit={handleSubmit}>
         <div className="grid gap-1">
           <Label htmlFor="lat" className="text-xs text-muted-foreground">Latitude</Label>
-          <Input id="lat" type="number" step="any" min={-90} max={90} required value={lat}
+          <Input id="lat" type="number" step="any" min={-90} max={90} required={!selection.adding} value={lat}
             onChange={(e) => setLat(e.target.value)} />
         </div>
         <div className="grid gap-1">
           <Label htmlFor="lon" className="text-xs text-muted-foreground">Longitude</Label>
-          <Input id="lon" type="number" step="any" min={-180} max={180} required value={lon}
+          <Input id="lon" type="number" step="any" min={-180} max={180} required={!selection.adding} value={lon}
             onChange={(e) => setLon(e.target.value)} />
         </div>
         <div className="col-span-full grid gap-1">
@@ -65,7 +66,7 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
         </div>
         <div className="col-span-full flex items-center justify-end gap-2">
           {selection.adding ? (
-            <span className="mr-auto text-xs text-muted-foreground">Apply adds point {pointLabel(selection.points.length)}</span>
+            <span className="mr-auto text-xs text-muted-foreground">Coordinates add point {pointLabel(selection.points.length)}</span>
           ) : canCompare ? (
             <span className="mr-auto text-xs text-muted-foreground">Time applies to all points</span>
           ) : null}
@@ -82,10 +83,11 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
             <TabsTrigger value="point">
               <span className="size-2 rounded-full" style={{ background: color }} /> Point {label}
             </TabsTrigger>
-            <TabsTrigger value="compare" disabled={!canCompare} title={canCompare ? undefined : "Add a second point to compare"}>
+            <TabsTrigger value="compare" disabled={!canCompare}>
               Compare
             </TabsTrigger>
           </TabsList>
+          {!canCompare && <p className="m-0 text-xs text-muted-foreground">Add a second point to compare.</p>}
           <TabsContent value="point">
             <PointView query={query} utc={selection.utc} color={color} />
           </TabsContent>
@@ -100,6 +102,10 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
 
 function PointView({ query, utc, color }: { query: SurfaceQueryState; utc: string; color: string }) {
   const { data, loading, error } = query;
+  const series = useMemo<InsolationSeries[]>(
+    () => (data ? [{ name: "Illumination", color, data: data.insolation.insolation_graph }] : []),
+    [data, color]
+  );
   if (error) return <p className="mt-2 whitespace-pre-wrap text-destructive">{error}</p>;
   if (!data) return <p className="mt-2 text-muted-foreground">Loading…</p>;
   return (
@@ -129,10 +135,7 @@ function PointView({ query, utc, color }: { query: SurfaceQueryState; utc: strin
         {data.insolation.insolation_watts.toFixed(1)}{" "}
         <span className="text-[13px] text-muted-foreground">W/m² now</span>
       </p>
-      <InsolationChart
-        series={[{ name: "Illumination", color, data: data.insolation.insolation_graph }]}
-        currentUtc={utc}
-      />
+      <InsolationChart series={series} currentUtc={utc} />
       <p className="mt-1 text-xs text-muted-foreground">±1 lunar day around the selected time, hourly samples.</p>
     </div>
   );

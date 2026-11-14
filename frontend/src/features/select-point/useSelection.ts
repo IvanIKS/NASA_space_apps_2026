@@ -10,6 +10,7 @@ export interface Selection {
   utc: string;
   view: ViewMode;
   adding: boolean;
+  revision: number;
 }
 
 export interface SelectionActions {
@@ -43,13 +44,14 @@ function parsePoints(params: URLSearchParams): LatLon[] {
 function readUrl(): Selection {
   const params = new URLSearchParams(window.location.search);
   const points = parsePoints(params);
-  const active = Math.min(parseInt(params.get("active") ?? "0", 10) || 0, points.length - 1);
+  const active = Math.max(0, Math.min(parseInt(params.get("active") ?? "0", 10) || 0, points.length - 1));
   return {
     points,
     active,
     utc: params.get("utc") ?? nowUtc(),
     view: points.length > 0 && params.get("view") === "surface" ? "surface" : "globe",
     adding: false,
+    revision: 0,
   };
 }
 
@@ -81,7 +83,8 @@ export function useSelection(): [Selection, SelectionActions] {
   const actions = useMemo<SelectionActions>(
     () => ({
       place: (point) => setSelection((s) => withPoint(s, point)),
-      apply: (point, utc) => setSelection((s) => ({ ...(point ? withPoint(s, point) : s), utc })),
+      apply: (point, utc) =>
+        setSelection((s) => ({ ...(point ? withPoint(s, point) : s), utc, revision: s.revision + 1 })),
       activate: (index) => setSelection((s) => (index < s.points.length ? { ...s, active: index, adding: false } : s)),
       remove: (index) =>
         setSelection((s) => {

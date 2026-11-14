@@ -29,8 +29,8 @@ interface Row {
 export function CompareView({ queries, utc }: Props) {
   const rows = useMemo<(Row | null)[]>(
     () =>
-      queries.map(({ data }, index) => {
-        if (!data) return null;
+      queries.map(({ data, loading }, index) => {
+        if (!data || loading) return null;
         const graph = data.insolation.insolation_graph;
         const t = nextTransition(graph, utc);
         return {
@@ -53,15 +53,12 @@ export function CompareView({ queries, utc }: Props) {
   const bestSunEl = best("sunEl");
   const bestWatts = best("watts");
   const bestLit = best("lit");
-  const series = useMemo<InsolationSeries[]>(
-    () =>
-      queries.flatMap(({ data }, index) =>
-        data
-          ? [{ name: pointLabel(index), color: POINT_COLORS[index], data: data.insolation.insolation_graph }]
-          : []
-      ),
-    [queries]
-  );
+  const series = useMemo<InsolationSeries[]>(() => {
+    const toSeries = (q: SurfaceQueryState, index: number): InsolationSeries[] =>
+      q.data ? [{ name: pointLabel(index), color: POINT_COLORS[index], data: q.data.insolation.insolation_graph }] : [];
+    const fresh = queries.flatMap((q, index) => (q.loading ? [] : toSeries(q, index)));
+    return fresh.length > 0 ? fresh : queries.flatMap(toSeries);
+  }, [queries]);
 
   const hi = (on: boolean) => cn("py-1.5 text-right", on && "font-semibold text-foreground");
 
