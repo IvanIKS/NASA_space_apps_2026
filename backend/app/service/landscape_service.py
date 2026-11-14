@@ -182,8 +182,10 @@ def load_map(map_dir=None) -> "list[_Tile]":
     if not paths:
         dotenv_path = Path(__file__).resolve().parent.parent / ".env"
         load_dotenv(dotenv_path=dotenv_path)
-        _SHOULD_DOWNLOAD_MAP = bool(os.getenv(_dotenv_map_var_name))
-        if _SHOULD_DOWNLOAD_MAP is not None and _SHOULD_DOWNLOAD_MAP:
+
+        #This is dumb, but bool("False") is True in Python.
+        _SHOULD_DOWNLOAD_MAP = os.getenv(_dotenv_map_var_name)
+        if _SHOULD_DOWNLOAD_MAP is not None and _SHOULD_DOWNLOAD_MAP == "True":
             _download_map_from_nasa_site()
             paths = sorted(base.glob(_TILE_GLOB))
         else:
