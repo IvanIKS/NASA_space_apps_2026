@@ -17,7 +17,6 @@ export interface SurfaceQueryResponse {
   };
 }
 
-/** Sun/Earth positions and insolation (now + ±1 lunar day series) for a point on the surface. */
 export function querySurface(
   utc: string,
   lat_deg: number,

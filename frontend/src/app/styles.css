@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* The app is dark-only, so the shadcn/ui tokens are defined once on :root. */
 :root {
   color-scheme: dark;
   --radius: 0.375rem;

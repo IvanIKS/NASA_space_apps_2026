@@ -1,4 +1,4 @@
 export { querySurface } from "./api";
 export type { BodyResult, SurfaceQueryResponse } from "./api";
-export { useSurfaceQuery } from "./useSurfaceQuery";
-export type { SurfaceQueryState } from "./useSurfaceQuery";
+export { useSurfaceQueries } from "./useSurfaceQueries";
+export type { SurfaceQueryState } from "./useSurfaceQueries";
