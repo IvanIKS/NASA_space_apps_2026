@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from ..schemas import SurfaceQueryRequest, SurfaceQueryResponse, BodyResult, InsolationResult, InsolationRequest
-from service.spice_service import query_surface, calculate_insolation_series
+from app.service.spice_service import query_surface, calculate_insolation_series
+from app.service.landscape_service import get_landscape_map
 
 router = APIRouter(prefix="/positions", tags=["positions"])
 
@@ -38,3 +39,8 @@ async def insolation(req: InsolationRequest):
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
     return series
 
+@router.get("/landscape")
+async def get_landscape(lat_start, lon_start, lat_end, lon_end):
+    try:
+        return get_landscape_map(lat_start, lon_start, lat_end, lon_end)
+    except Exception as e: raise HTTPException(status_code=400, detail=str(e))

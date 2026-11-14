@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import spiceypy as spice
 
-KERNEL_DIR = Path(__file__).parent.parent / "kernels"
+KERNEL_DIR = Path(__file__).parent.parent.parent / "kernels"
 
 _LOADED = False
 
