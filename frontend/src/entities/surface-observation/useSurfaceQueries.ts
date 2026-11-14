@@ -15,6 +15,7 @@ const keyOf = (p: LatLon, utc: string) => `${p.lat},${p.lon}@${utc}`;
 export function useSurfaceQueries(points: LatLon[], utc: string): SurfaceQueryState[] {
   const [results, setResults] = useState<Record<string, SurfaceQueryState>>({});
   const inflight = useRef(new Map<string, AbortController>());
+  const shown = useRef<(SurfaceQueryResponse | null)[]>([]);
   const keys = points.map((p) => keyOf(p, utc));
   const signature = keys.join("|");
 
@@ -53,5 +54,10 @@ export function useSurfaceQueries(points: LatLon[], utc: string): SurfaceQuerySt
     };
   }, []);
 
-  return keys.map((key) => results[key] ?? LOADING);
+  shown.current.length = keys.length;
+  return keys.map((key, i) => {
+    const result = results[key];
+    if (result?.data) shown.current[i] = result.data;
+    return result ?? { ...LOADING, data: shown.current[i] ?? null };
+  });
 }

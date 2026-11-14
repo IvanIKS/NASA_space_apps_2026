@@ -80,7 +80,7 @@ export function CompareView({ queries, utc }: Props) {
         </thead>
         <tbody className="text-muted-foreground">
           {rows.map((r, index) => (
-            <tr key={index} className="border-t border-border">
+            <tr key={index} className={cn("border-t border-border transition-opacity", queries[index].loading && "opacity-50")}>
               <td className="py-1.5">
                 <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
                   <span className="size-2 rounded-full" style={{ background: POINT_COLORS[index] }} />
