@@ -9,13 +9,13 @@ export interface SurfaceQueryState {
 }
 
 const pointKey = (p: LatLon) => `${p.lat},${p.lon}`;
-const keyOf = (p: LatLon, utc: string) => `${pointKey(p)}@${utc}`;
+const keyOf = (p: LatLon, utc: string, days: number) => `${pointKey(p)}@${utc}/${days}`;
 
-export function useSurfaceQueries(points: LatLon[], utc: string, revision = 0): SurfaceQueryState[] {
+export function useSurfaceQueries(points: LatLon[], utc: string, days: number, revision = 0): SurfaceQueryState[] {
   const [results, setResults] = useState<Record<string, SurfaceQueryState>>({});
   const [previous, setPrevious] = useState<Record<string, SurfaceQueryResponse>>({});
   const inflight = useRef(new Map<string, AbortController>());
-  const keys = points.map((p) => keyOf(p, utc));
+  const keys = points.map((p) => keyOf(p, utc, days));
   const signature = keys.join("|");
 
   useEffect(() => {
@@ -26,7 +26,7 @@ export function useSurfaceQueries(points: LatLon[], utc: string, revision = 0): 
       inflight.current.set(key, ctrl);
       if (cached) setResults((r) => ({ ...r, [key]: { data: null, loading: true, error: null } }));
       const { lat, lon } = points[i];
-      querySurface(utc, lat, lon, 0, ctrl.signal)
+      querySurface(utc, lat, lon, days, 0, ctrl.signal)
         .then((data) => setResults((r) => ({ ...r, [key]: { data, loading: false, error: null } })))
         .catch((e: Error) => {
           if (!ctrl.signal.aborted) setResults((r) => ({ ...r, [key]: { data: null, loading: false, error: e.message } }));

@@ -21,8 +21,9 @@ export function querySurface(
   utc: string,
   lat_deg: number,
   lon_deg: number,
+  graph_days: number,
   alt_km = 0,
   signal?: AbortSignal
 ): Promise<SurfaceQueryResponse> {
-  return postJson("/positions/surface", { utc, lat_deg, lon_deg, alt_km }, signal);
+  return postJson("/positions/surface", { utc, lat_deg, lon_deg, alt_km, graph_days }, signal);
 }
