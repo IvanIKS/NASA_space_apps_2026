@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { DEFAULT_GRAPH_DAYS, GRAPH_WINDOWS_DAYS, MAX_POINTS } from "@/shared/config";
+import { DEFAULT_GRAPH_DAYS, MAX_GRAPH_DAYS, MAX_POINTS, MIN_GRAPH_DAYS } from "@/shared/config";
 import { nowUtc, roundCoord, type LatLon } from "@/shared/lib";
 
 export type ViewMode = "globe" | "surface";
@@ -43,10 +43,10 @@ function parsePoints(params: URLSearchParams): LatLon[] {
   return points.slice(0, MAX_POINTS);
 }
 
-function parseDays(raw: string | null): number {
-  const days = parseInt(raw ?? "", 10);
-  return (GRAPH_WINDOWS_DAYS as readonly number[]).includes(days) ? days : DEFAULT_GRAPH_DAYS;
-}
+export const clampDays = (days: number) =>
+  Number.isFinite(days) ? Math.min(MAX_GRAPH_DAYS, Math.max(MIN_GRAPH_DAYS, Math.round(days))) : DEFAULT_GRAPH_DAYS;
+
+const parseDays = (raw: string | null) => clampDays(parseInt(raw ?? "", 10));
 
 function readUrl(): Selection {
   const params = new URLSearchParams(window.location.search);
@@ -103,7 +103,7 @@ export function useSelection(): [Selection, SelectionActions] {
         }),
       startAdd: () => setSelection((s) => (s.points.length < MAX_POINTS ? { ...s, adding: true, view: "globe" } : s)),
       cancelAdd: () => setSelection((s) => ({ ...s, adding: false })),
-      setDays: (days) => setSelection((s) => ({ ...s, days })),
+      setDays: (days) => setSelection((s) => ({ ...s, days: clampDays(days) })),
       toggleView: () =>
         setSelection((s) => ({ ...s, view: s.view === "surface" ? "globe" : "surface", adding: false })),
     }),
