@@ -21,7 +21,7 @@ _MOON_RADIUS_M = _MOON_RADIUS_KM * 1000.0
 _DEG_PER_M = 180.0 / (math.pi * _MOON_RADIUS_M)
 
 # The GLD100 mosaic tiles live next to the backend package, in backend/moon-map.
-_MAP_DIR = Path(__file__).resolve().parent.parent / "moon-map"
+_MAP_DIR = Path(__file__).resolve().parent.parent.parent / "moon-map"
 _TILE_GLOB = "WAC_GLD100_*.TIF"
 
 # TIFF tag type -> (struct code, byte size).
@@ -336,8 +336,6 @@ def get_landscape_map(lat_start, lon_start, lat_end, lon_end):
     if not _MAP_LOADED:
         raise ValueError("Moon map is not present in folder.")
 
-    if not _LANDSCAPE_MAP:
-        load_map()
     tiles = _LANDSCAPE_MAP
     dppx = tiles[0].deg_per_px_x
     dppy = tiles[0].deg_per_px_y

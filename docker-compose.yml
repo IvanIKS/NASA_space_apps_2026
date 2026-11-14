@@ -3,6 +3,8 @@ services:
     build: ./backend
     volumes:
       - sqlite_data:/data
+      # GLD100 mosaic tiles mounted from host instead of copied into the image
+      - ./backend/moon-map:/backend/moon-map:ro
     environment:
       - PYTHONUNBUFFERED=1
     ports:
