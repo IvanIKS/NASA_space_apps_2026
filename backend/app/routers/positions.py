@@ -1,6 +1,18 @@
 from fastapi import APIRouter, HTTPException
-from ..schemas import SurfaceQueryRequest, SurfaceQueryResponse, BodyResult, InsolationResult, InsolationRequest
-from service.spice_service import query_surface, calculate_insolation_series
+from ..schemas import (
+    BodyResult,
+    EarthVisibilityRequest,
+    EarthVisibilityResponse,
+    InsolationRequest,
+    InsolationResult,
+    SurfaceQueryRequest,
+    SurfaceQueryResponse,
+)
+from service.spice_service import (
+    calculate_insolation_series,
+    earth_visibility_windows,
+    query_surface,
+)
 
 router = APIRouter(prefix="/positions", tags=["positions"])
 
@@ -29,7 +41,26 @@ async def surface_query(req: SurfaceQueryRequest):
             insolation_watts=raw["insolation_watts"],
             insolation_graph=raw["insolation_graph"]
         ),
+        earth_visibility=EarthVisibilityResponse(**raw["earth_visibility"]),
     )
+
+
+@router.post("/earth-visibility", response_model=EarthVisibilityResponse)
+async def earth_visibility(req: EarthVisibilityRequest):
+    try:
+        result = earth_visibility_windows(
+            req.lat_deg,
+            req.lon_deg,
+            req.utc_from,
+            req.utc_to,
+            alt_km=req.alt_km,
+            step_s=req.step_s,
+            min_elevation_deg=req.min_elevation_deg,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return EarthVisibilityResponse(**result)
+
 
 @router.get("/insolation")
 async def insolation(req: InsolationRequest):

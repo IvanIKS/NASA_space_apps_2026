@@ -130,6 +130,9 @@ function PointView({ query, utc, color }: { query: SurfaceQueryState; utc: strin
         </tbody>
       </table>
 
+      <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Earth Line-of-Sight</h3>
+      <EarthVisibilitySection visibility={data.earth_visibility} />
+
       <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Illumination</h3>
       <p className="m-0 text-2xl tabular-nums">
         {data.insolation.insolation_watts.toFixed(1)}{" "}
@@ -137,6 +140,68 @@ function PointView({ query, utc, color }: { query: SurfaceQueryState; utc: strin
       </p>
       <InsolationChart series={series} currentUtc={utc} />
       <p className="mt-1 text-xs text-muted-foreground">±1 lunar day around the selected time, hourly samples.</p>
+    </div>
+  );
+}
+
+function formatDuration(seconds: number): string {
+  const hours = seconds / 3600;
+  if (hours < 24) return `${hours.toFixed(1)}h`;
+  const days = Math.floor(hours / 24);
+  const remHours = Math.round(hours % 24);
+  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+}
+
+function shortUtc(iso: string): string {
+  return iso.slice(5, 16).replace("T", " ");
+}
+
+function EarthVisibilitySection({
+  visibility,
+}: {
+  visibility: NonNullable<SurfaceQueryState["data"]>["earth_visibility"];
+}) {
+  if (visibility.always_visible) {
+    return (
+      <p className="m-0 text-xs text-muted-foreground">
+        Always in direct view (100% of ±1 lunar day, max {deg(visibility.windows[0]?.max_elevation_deg ?? 0)}).
+      </p>
+    );
+  }
+  if (visibility.never_visible) {
+    return (
+      <p className="m-0 text-xs text-muted-foreground">
+        Never in direct view (0% of ±1 lunar day — far side).
+      </p>
+    );
+  }
+  const pct = (visibility.visible_fraction * 100).toFixed(1);
+  return (
+    <div>
+      <p className="m-0 text-xs text-muted-foreground">
+        Visible {pct}% of ±1 lunar day ({visibility.windows.length}{" "}
+        {visibility.windows.length === 1 ? "window" : "windows"}).
+      </p>
+      <table className="mt-2 w-full border-collapse text-xs tabular-nums">
+        <thead>
+          <tr className="text-muted-foreground">
+            <th className="py-1 text-left font-medium">Rise (UTC)</th>
+            <th className="py-1 text-left font-medium">Set (UTC)</th>
+            <th className="py-1 text-right font-medium">Duration</th>
+            <th className="py-1 text-right font-medium">Max</th>
+          </tr>
+        </thead>
+        <tbody>
+          {visibility.windows.map((w, i) => (
+            <tr key={i} className="border-t border-border">
+              <td className="py-1">{w.clipped_start ? `≤ ${shortUtc(w.rise_utc)}` : shortUtc(w.rise_utc)}</td>
+              <td className="py-1">{w.clipped_end ? `≥ ${shortUtc(w.set_utc)}` : shortUtc(w.set_utc)}</td>
+              <td className="py-1 text-right">{formatDuration(w.duration_s)}</td>
+              <td className="py-1 text-right">{deg(w.max_elevation_deg)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

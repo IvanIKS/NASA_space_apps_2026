@@ -8,6 +8,23 @@ export interface BodyResult {
   lighttime_s: number;
 }
 
+export interface EarthVisibilityWindow {
+  rise_utc: string;
+  set_utc: string;
+  duration_s: number;
+  max_elevation_deg: number;
+  clipped_start: boolean;
+  clipped_end: boolean;
+}
+
+export interface EarthVisibilityResult {
+  windows: EarthVisibilityWindow[];
+  total_visible_s: number;
+  visible_fraction: number;
+  always_visible: boolean;
+  never_visible: boolean;
+}
+
 export interface SurfaceQueryResponse {
   earth: BodyResult;
   sun: BodyResult;
@@ -15,6 +32,7 @@ export interface SurfaceQueryResponse {
     insolation_watts: number;
     insolation_graph: InsolationPoint[];
   };
+  earth_visibility: EarthVisibilityResult;
 }
 
 export function querySurface(
