@@ -17,12 +17,18 @@ export interface EarthVisibilityWindow {
   clipped_end: boolean;
 }
 
+export interface EarthElevationPoint {
+  utc: string;
+  elevation_deg: number;
+}
+
 export interface EarthVisibilityResult {
   windows: EarthVisibilityWindow[];
   total_visible_s: number;
   visible_fraction: number;
   always_visible: boolean;
   never_visible: boolean;
+  elevation_graph: EarthElevationPoint[];
 }
 
 export interface SurfaceQueryResponse {

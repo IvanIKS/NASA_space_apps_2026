@@ -20,12 +20,18 @@ class RadioWindowResult(BaseModel):
     clipped_end: bool = False
 
 
+class EarthElevationPoint(BaseModel):
+    utc: str
+    elevation_deg: float
+
+
 class EarthVisibilityResponse(BaseModel):
     windows: list[RadioWindowResult]
     total_visible_s: float
     visible_fraction: float
     always_visible: bool
     never_visible: bool
+    elevation_graph: list[EarthElevationPoint] = []
 
 
 class EarthVisibilityRequest(BaseModel):

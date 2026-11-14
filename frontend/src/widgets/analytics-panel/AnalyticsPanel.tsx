@@ -6,6 +6,7 @@ import { POINT_COLORS } from "@/shared/config";
 import { cn, formatDeg as deg, nowUtc } from "@/shared/lib";
 import { Button, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui";
 import { CompareView } from "./CompareView";
+import { EarthElevationChart, type EarthElevationSeries } from "./EarthElevationChart";
 import { PointChips } from "./PointChips";
 
 interface Props {
@@ -131,7 +132,7 @@ function PointView({ query, utc, color }: { query: SurfaceQueryState; utc: strin
       </table>
 
       <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Earth Line-of-Sight</h3>
-      <EarthVisibilitySection visibility={data.earth_visibility} />
+      <EarthVisibilitySection visibility={data.earth_visibility} utc={utc} color={color} />
 
       <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Illumination</h3>
       <p className="m-0 text-2xl tabular-nums">
@@ -158,21 +159,39 @@ function shortUtc(iso: string): string {
 
 function EarthVisibilitySection({
   visibility,
+  utc,
+  color,
 }: {
   visibility: NonNullable<SurfaceQueryState["data"]>["earth_visibility"];
+  utc: string;
+  color: string;
 }) {
+  const earthSeries = useMemo<EarthElevationSeries[]>(
+    () =>
+      visibility.elevation_graph?.length
+        ? [{ name: "Earth elevation", color, data: visibility.elevation_graph }]
+        : [],
+    [visibility.elevation_graph, color]
+  );
+
   if (visibility.always_visible) {
     return (
-      <p className="m-0 text-xs text-muted-foreground">
-        Always in direct view (100% of ±1 lunar day, max {deg(visibility.windows[0]?.max_elevation_deg ?? 0)}).
-      </p>
+      <div>
+        <p className="m-0 text-xs text-muted-foreground">
+          Always in direct view (100% of ±1 lunar day, max {deg(visibility.windows[0]?.max_elevation_deg ?? 0)}).
+        </p>
+        {earthSeries.length > 0 && <EarthElevationChart series={earthSeries} currentUtc={utc} />}
+      </div>
     );
   }
   if (visibility.never_visible) {
     return (
-      <p className="m-0 text-xs text-muted-foreground">
-        Never in direct view (0% of ±1 lunar day — far side).
-      </p>
+      <div>
+        <p className="m-0 text-xs text-muted-foreground">
+          Never in direct view (0% of ±1 lunar day — far side).
+        </p>
+        {earthSeries.length > 0 && <EarthElevationChart series={earthSeries} currentUtc={utc} />}
+      </div>
     );
   }
   const pct = (visibility.visible_fraction * 100).toFixed(1);
@@ -182,6 +201,7 @@ function EarthVisibilitySection({
         Visible {pct}% of ±1 lunar day ({visibility.windows.length}{" "}
         {visibility.windows.length === 1 ? "window" : "windows"}).
       </p>
+      {earthSeries.length > 0 && <EarthElevationChart series={earthSeries} currentUtc={utc} />}
       <table className="mt-2 w-full border-collapse text-xs tabular-nums">
         <thead>
           <tr className="text-muted-foreground">

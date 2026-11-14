@@ -60,6 +60,9 @@ def test_limb_libration_windows_and_boundary_accuracy():
     assert res["never_visible"] is False
     assert 0.0 < res["visible_fraction"] < 1.0
     assert len(res["windows"]) >= 1
+    assert len(res["elevation_graph"]) > 100
+    assert any(p["elevation_deg"] > 0 for p in res["elevation_graph"])
+    assert any(p["elevation_deg"] <= 0 for p in res["elevation_graph"])
 
     obspos, _, _, up = spice_service._observer_frame(0.0, 88.0, 0.0)
     for w in res["windows"]:

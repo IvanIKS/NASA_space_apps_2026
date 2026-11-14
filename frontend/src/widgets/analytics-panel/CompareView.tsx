@@ -11,6 +11,7 @@ import type { SurfaceQueryState } from "@/entities/surface-observation";
 import { pointLabel } from "@/features/select-point";
 import { POINT_COLORS } from "@/shared/config";
 import { cn, formatDeg as deg } from "@/shared/lib";
+import { EarthElevationChart, type EarthElevationSeries } from "./EarthElevationChart";
 
 interface Props {
   queries: SurfaceQueryState[];
@@ -76,6 +77,15 @@ export function CompareView({ queries, utc }: Props) {
       ),
     [shown]
   );
+  const earthSeries = useMemo<EarthElevationSeries[]>(
+    () =>
+      shown.queries.flatMap((q, index) =>
+        q.data?.earth_visibility.elevation_graph?.length
+          ? [{ name: pointLabel(index), color: POINT_COLORS[index], data: q.data.earth_visibility.elevation_graph }]
+          : []
+      ),
+    [shown]
+  );
 
   const hi = (on: boolean) => cn("py-1.5 text-right", on && "font-semibold text-foreground");
 
@@ -130,6 +140,14 @@ export function CompareView({ queries, utc }: Props) {
           <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Illumination</h3>
           <InsolationChart series={series} currentUtc={shown.utc} />
           <p className="mt-1 text-xs text-muted-foreground">±1 lunar day around the selected time, hourly samples.</p>
+        </>
+      )}
+
+      {earthSeries.length > 0 && (
+        <>
+          <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Earth Elevation</h3>
+          <EarthElevationChart series={earthSeries} currentUtc={shown.utc} />
+          <p className="mt-1 text-xs text-muted-foreground">Earth angle above the horizon (0° = horizon), hourly samples.</p>
         </>
       )}
     </div>

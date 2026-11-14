@@ -258,11 +258,20 @@ def earth_visibility_windows(
     )
     never_visible = len(windows) == 0
 
+    elevation_graph = [
+        {
+            "utc": spice.et2utc(float(t), "ISOC", 0),
+            "elevation_deg": float(el),
+        }
+        for t, el in zip(times, elevations)
+    ]
+
     return {
         "windows": windows,
         "total_visible_s": float(total_visible_s),
         "visible_fraction": float(visible_fraction),
         "always_visible": always_visible,
         "never_visible": never_visible,
+        "elevation_graph": elevation_graph,
     }
 
