@@ -27,6 +27,25 @@ _DEG_PER_M = 180.0 / (math.pi * _MOON_RADIUS_M)
 _MAP_DIR = Path(__file__).resolve().parent.parent.parent / "moon-map"
 _TILE_GLOB = "WAC_GLD100_*.TIF"
 
+# Source for auto-download: the full-precision GLD100 PDS ".IMG" tiles (16-bit
+# DEM in metres) live under DATA/SDP, not the EXTRAS/BROWSE path that serves the
+# 8-bit ".TIF" browse rasters.
+_FILE_SERVER_URL = ("https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/"
+                    "LROLRC_2001/DATA/SDP/WAC_GLD100/")
+_REQUIRED_MAP_ADDRESSES = (
+    "WAC_GLD100_E300N2250_100M",
+    "WAC_GLD100_E300N3150_100M",
+    "WAC_GLD100_E300N0450_100M",
+    "WAC_GLD100_E300N1350_100M",
+    "WAC_GLD100_E300S2250_100M",
+    "WAC_GLD100_E300S3150_100M",
+    "WAC_GLD100_E300S0450_100M",
+    "WAC_GLD100_E300S1350_100M",
+    # northern and southern pole areas
+    "WAC_GLD100_P900N0000_100M",
+    "WAC_GLD100_P900S0000_100M",
+)
+
 # TIFF tag type -> (struct code, byte size).
 _TIFF_TYPES = {1: ("B", 1), 3: ("H", 2), 4: ("I", 4), 12: ("d", 8)}
 
@@ -301,7 +320,9 @@ def load_map(map_dir=None) -> "list[_Tile]":
     base = Path(map_dir) if map_dir is not None else _MAP_DIR
     paths = sorted(base.glob(_TILE_GLOB))
     if not paths:
-        dotenv_path = Path(__file__).resolve().parent.parent / ".env"
+        # The .env lives in the backend root, next to moon-map (one level above
+        # the app package), same as _MAP_DIR is resolved.
+        dotenv_path = Path(__file__).resolve().parent.parent.parent / ".env"
         load_dotenv(dotenv_path=dotenv_path)
 
         #This is dumb, but bool("False") is True in Python.
@@ -325,36 +346,20 @@ def load_map(map_dir=None) -> "list[_Tile]":
 
 
 def _download_map_from_nasa_site():
-    """Download the GLD100 mosaic tiles from the NASA LROC site into
-    ``moon-map``.
+    """Download the full-precision GLD100 PDS ``.IMG`` tiles (16-bit DEM in
+    metres) from the NASA LROC site into ``moon-map``.
 
-    https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/EXTRAS/BROWSE/WAC_GLD100/
+    The ``.IMG`` products live under DATA/SDP, not the EXTRAS/BROWSE path that
+    serves the 8-bit ``.TIF`` browse rasters.
+    https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/SDP/WAC_GLD100/
     """
-
-    file_server_url = "https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/EXTRAS/BROWSE/WAC_GLD100/"
-
-    required_map_addresses = [
-        "WAC_GLD100_E300N2250_100M",
-        "WAC_GLD100_E300N3150_100M",
-        "WAC_GLD100_E300N0450_100M",
-        "WAC_GLD100_E300N1350_100M",
-        "WAC_GLD100_E300S2250_100M",
-        "WAC_GLD100_E300S3150_100M",
-        "WAC_GLD100_E300S0450_100M",
-        "WAC_GLD100_E300S1350_100M",
-        #northern and southern pole areas
-        "WAC_GLD100_P900N0000_100M",
-        "WAC_GLD100_P900S0000_100M"
-    ]
 
     _MAP_DIR.mkdir(parents=True, exist_ok=True)
 
-    for address in required_map_addresses:
-        # The BROWSE path serves the raster at "<name>.TIF" (and 302-redirects
-        # to NASA's S3 store, which urlopen follows automatically).
-        url = file_server_url + address + ".TIF"
-        # Name the file so load_map()'s WAC_GLD100_*.TIF glob picks it up.
-        dest = _MAP_DIR / f"{address}.TIF"
+    for address in _REQUIRED_MAP_ADDRESSES:
+        # urlopen follows the 302 redirect to NASA's S3 store automatically.
+        url = _FILE_SERVER_URL + address + ".IMG"
+        dest = _MAP_DIR / f"{address}.IMG"
         if dest.exists():
             print(f"Already have {dest.name}, skipping.")
             continue
@@ -364,14 +369,16 @@ def _download_map_from_nasa_site():
         try:
             with urllib.request.urlopen(url) as response, open(tmp, "wb") as fh:
                 # Fail loudly on an error/redirect page rather than saving HTML
-                # into a .TIF (which later trips the TIFF magic-byte check).
-                magic = response.read(2)
-                if magic not in (b"II", b"MM"):
+                # into a .IMG. A PDS3 product begins with its attached ASCII
+                # label, i.e. the literal "PDS_VERSION_ID" keyword.
+                header = response.read(14)
+                if not header.startswith(b"PDS_VERSION_ID"):
                     raise ValueError(
-                        f"{url} did not return a TIFF (first bytes {magic!r}); "
-                        f"got content-type {response.headers.get('Content-Type')!r}"
+                        f"{url} did not return a PDS label (first bytes "
+                        f"{header!r}); got content-type "
+                        f"{response.headers.get('Content-Type')!r}"
                     )
-                fh.write(magic)
+                fh.write(header)
                 shutil.copyfileobj(response, fh)
             tmp.replace(dest)
         except Exception as exc:

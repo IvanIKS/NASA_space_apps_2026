@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from ..schemas import SurfaceQueryRequest, SurfaceQueryResponse, BodyResult, InsolationResult
+from ..schemas import SurfaceQueryRequest, SurfaceQueryResponse, BodyResult, InsolationResult, SlopeResult
 from app.service.spice_service import query_surface, calculate_insolation_series
 from app.service.landscape_service import get_landscape_map, has_map_data
 
@@ -36,6 +36,10 @@ async def surface_query(req: SurfaceQueryRequest):
         insolation=InsolationResult(
             insolation_watts=raw["insolation_watts"],
             insolation_graph=raw["insolation_graph"]
+        ),
+        slope=SlopeResult(
+            slope_deg=raw["slope_deg"],
+            aspect_deg=raw["aspect_deg"]
         ),
         warnings=warnings,
     )

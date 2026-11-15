@@ -11,6 +11,11 @@ class InsolationResult(BaseModel):
     insolation_watts: float
     insolation_graph: list[dict]
 
+class SlopeResult(BaseModel):
+    slope_deg: float
+    aspect_deg: float
+
+
 class RadioWindowResult(BaseModel):
     pass
 
@@ -24,6 +29,7 @@ class SurfaceQueryResponse(BaseModel):
     earth: BodyResult
     sun: BodyResult
     insolation: InsolationResult
+    slope: SlopeResult
     warnings: list[str] = []
 
 
