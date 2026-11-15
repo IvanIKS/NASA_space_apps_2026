@@ -20,12 +20,13 @@ export default function SkyView({ earth, sun, latitudeDeg, longitudeDeg }: SkyVi
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SkyScene | null>(null);
   const [heading, setHeading] = useState(0);
-  const [textureError, setTextureError] = useState(false);
+  const [textureError, setTextureError] = useState<"color" | "elevation" | null>(null);
 
   useEffect(() => {
+    setTextureError(null);
     const scene = createSkyScene(containerRef.current!, latitudeDeg, longitudeDeg, {
       onHeading: setHeading,
-      onTextureError: () => setTextureError(true),
+      onTextureError: setTextureError,
     });
     sceneRef.current = scene;
     return () => {
@@ -44,7 +45,8 @@ export default function SkyView({ earth, sun, latitudeDeg, longitudeDeg }: SkyVi
 
       {textureError && (
         <div role="alert" className="absolute top-4 left-4 rounded-md bg-red-900/90 px-3 py-2.5 text-white">
-          Could not load the lunar texture at {TEXTURES.color}.
+          Could not load the lunar {textureError} map at{" "}
+          {textureError === "color" ? TEXTURES.color : TEXTURES.elevation}.
         </div>
       )}
 

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { InsolationChart, type InsolationSeries } from "@/entities/insolation";
+import { InsolationChart, type InsolationSeries, type SeriesVisibility } from "@/entities/insolation";
 import type { SurfaceQueryState } from "@/entities/surface-observation";
 import { activePoint, pointLabel, type Selection, type SelectionActions } from "@/features/select-point";
-import { POINT_COLORS } from "@/shared/config";
+import { EARTH_COLOR, POINT_COLORS } from "@/shared/config";
 import { cn, formatDeg as deg, nowUtc } from "@/shared/lib";
 import { Button, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui";
 import { CompareView } from "./CompareView";
 import { GraphWindow } from "./GraphWindow";
 import { PointChips } from "./PointChips";
+import { SeriesToggles } from "./SeriesToggles";
 
 interface Props {
   selection: Selection;
@@ -22,6 +23,7 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
   const query = queries[selection.active];
   const canCompare = selection.points.length > 1;
   const [tab, setTab] = useState<Tab>("point");
+  const [visible, setVisible] = useState<SeriesVisibility>({ insolation: true, earth: true });
   const [lat, setLat] = useState("");
   const [lon, setLon] = useState("");
   const [utc, setUtc] = useState(selection.utc);
@@ -90,10 +92,25 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
           </TabsList>
           {!canCompare && <p className="m-0 text-xs text-muted-foreground">Add a second point to compare.</p>}
           <TabsContent value="point">
-            <PointView query={query} utc={selection.utc} color={color} days={selection.days} onDays={actions.setDays} />
+            <PointView
+              query={query}
+              utc={selection.utc}
+              color={color}
+              days={selection.days}
+              onDays={actions.setDays}
+              visible={visible}
+              onVisible={setVisible}
+            />
           </TabsContent>
           <TabsContent value="compare">
-            <CompareView queries={queries} utc={selection.utc} days={selection.days} onDays={actions.setDays} />
+            <CompareView
+              queries={queries}
+              utc={selection.utc}
+              days={selection.days}
+              onDays={actions.setDays}
+              visible={visible}
+              onVisible={setVisible}
+            />
           </TabsContent>
         </Tabs>
       )}
@@ -107,12 +124,26 @@ interface PointViewProps {
   color: string;
   days: number;
   onDays: (days: number) => void;
+  visible: SeriesVisibility;
+  onVisible: (visible: SeriesVisibility) => void;
 }
 
-function PointView({ query, utc, color, days, onDays }: PointViewProps) {
+function PointView({ query, utc, color, days, onDays, visible, onVisible }: PointViewProps) {
   const { data, loading, error } = query;
   const series = useMemo<InsolationSeries[]>(
-    () => (data ? [{ name: "Illumination", color, data: data.insolation.insolation_graph }] : []),
+    () =>
+      data
+        ? [
+            {
+              name: "Illumination",
+              color,
+              data: data.insolation.insolation_graph,
+              earth: data.earth_visibility.elevation_graph,
+              earthName: "Earth above horizon",
+              earthColor: EARTH_COLOR,
+            },
+          ]
+        : [],
     [data, color]
   );
   if (error) return <p className="mt-2 whitespace-pre-wrap text-destructive">{error}</p>;
@@ -139,16 +170,80 @@ function PointView({ query, utc, color, days, onDays }: PointViewProps) {
         </tbody>
       </table>
 
-      <div className="mt-5 mb-1 flex items-center justify-between">
-        <h3 className="m-0 font-medium text-muted-foreground">Illumination</h3>
-        <GraphWindow days={days} onChange={onDays} />
-      </div>
+      <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Illumination</h3>
       <p className="m-0 text-2xl tabular-nums">
         {data.insolation.insolation_watts.toFixed(1)}{" "}
         <span className="text-[13px] text-muted-foreground">W/m² now</span>
       </p>
-      <InsolationChart series={series} currentUtc={utc} />
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <SeriesToggles visible={visible} onChange={onVisible} />
+        <GraphWindow days={days} onChange={onDays} />
+      </div>
+      <InsolationChart series={series} currentUtc={utc} visible={visible} />
       <p className="mt-1 text-xs text-muted-foreground">{days} days around the selected time, hourly samples.</p>
+
+      <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Earth line of sight</h3>
+      <EarthVisibilitySection visibility={data.earth_visibility} days={days} />
+    </div>
+  );
+}
+
+function formatDuration(seconds: number): string {
+  const hours = seconds / 3600;
+  if (hours < 24) return `${hours.toFixed(1)}h`;
+  const days = Math.floor(hours / 24);
+  const remHours = Math.round(hours % 24);
+  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+}
+
+function shortUtc(iso: string): string {
+  return iso.slice(5, 16).replace("T", " ");
+}
+
+function EarthVisibilitySection({
+  visibility,
+  days,
+}: {
+  visibility: NonNullable<SurfaceQueryState["data"]>["earth_visibility"];
+  days: number;
+}) {
+  if (visibility.always_visible) {
+    return (
+      <p className="m-0 text-xs text-muted-foreground">
+        Always in direct view over these {days} days, max {deg(visibility.windows[0]?.max_elevation_deg ?? 0)}.
+      </p>
+    );
+  }
+  if (visibility.never_visible) {
+    return <p className="m-0 text-xs text-muted-foreground">Never in direct view over these {days} days (far side).</p>;
+  }
+  const pct = (visibility.visible_fraction * 100).toFixed(1);
+  return (
+    <div>
+      <p className="m-0 text-xs text-muted-foreground">
+        Visible {pct}% of these {days} days ({visibility.windows.length}{" "}
+        {visibility.windows.length === 1 ? "window" : "windows"}).
+      </p>
+      <table className="mt-2 w-full border-collapse text-xs tabular-nums">
+        <thead>
+          <tr className="text-muted-foreground">
+            <th className="py-1 text-left font-medium">Rise (UTC)</th>
+            <th className="py-1 text-left font-medium">Set (UTC)</th>
+            <th className="py-1 text-right font-medium">Duration</th>
+            <th className="py-1 text-right font-medium">Max</th>
+          </tr>
+        </thead>
+        <tbody>
+          {visibility.windows.map((w, i) => (
+            <tr key={i} className="border-t border-border">
+              <td className="py-1">{w.clipped_start ? `≤ ${shortUtc(w.rise_utc)}` : shortUtc(w.rise_utc)}</td>
+              <td className="py-1">{w.clipped_end ? `≥ ${shortUtc(w.set_utc)}` : shortUtc(w.set_utc)}</td>
+              <td className="py-1 text-right">{formatDuration(w.duration_s)}</td>
+              <td className="py-1 text-right">{deg(w.max_elevation_deg)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
