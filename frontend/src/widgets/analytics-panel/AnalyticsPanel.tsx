@@ -3,7 +3,7 @@ import { InsolationChart, type InsolationSeries, type SeriesVisibility } from "@
 import type { SurfaceQueryState } from "@/entities/surface-observation";
 import { activePoint, pointLabel, type Selection, type SelectionActions } from "@/features/select-point";
 import { EARTH_COLOR, POINT_COLORS } from "@/shared/config";
-import { cn, formatDeg as deg, nowUtc } from "@/shared/lib";
+import { cn, formatDeg as deg, formatSlope, nowUtc } from "@/shared/lib";
 import { Button, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui";
 import { CompareView } from "./CompareView";
 import { GraphWindow } from "./GraphWindow";
@@ -167,6 +167,12 @@ function PointView({ query, utc, color, days, onDays, visible, onVisible }: Poin
             <td className="py-1 text-right">{deg(data.earth.azimuth_deg)}</td>
             <td className="py-1 text-right">{deg(data.earth.elevation_deg)}</td>
           </tr>
+          {data.slope && (
+            <tr className="border-t border-border">
+              <td className="py-1">Slope</td>
+              <td className="py-1 text-right" colSpan={2}>{formatSlope(data.slope.slope_deg, data.slope.aspect_deg)}</td>
+            </tr>
+          )}
         </tbody>
       </table>
 
