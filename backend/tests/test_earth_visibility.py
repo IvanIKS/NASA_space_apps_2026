@@ -130,3 +130,25 @@ def test_api_endpoints():
     )
     assert len(res2.earth_visibility.windows) >= 1
     assert 0.0 < res2.earth_visibility.visible_fraction < 1.0
+
+
+def test_landscape_horizon_obstruction(monkeypatch):
+    res_flat = spice_service.earth_visibility_windows(
+        lat_deg=0.0,
+        lon_deg=85.0,
+        start_utc="2026-10-01T00:00:00",
+        end_utc="2026-10-31T00:00:00",
+    )
+
+    monkeypatch.setattr(
+        spice_service.landscape_service,
+        "get_horizon_profile",
+        lambda *args, **kwargs: [10.0] * 360,
+    )
+    res_obstructed = spice_service.earth_visibility_windows(
+        lat_deg=0.0,
+        lon_deg=85.0,
+        start_utc="2026-10-01T00:00:00",
+        end_utc="2026-10-31T00:00:00",
+    )
+    assert res_obstructed["total_visible_s"] < res_flat["total_visible_s"]
