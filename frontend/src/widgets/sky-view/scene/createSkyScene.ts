@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { BodyResult } from "@/entities/surface-observation";
-import { createGround } from "./ground";
+import { createGround, type LandscapeData } from "./ground";
 import { createCompass, createEarth, createSun, EARTH_LAYER } from "./sky";
 import { apparentRadius, azimuthToYaw, BODY_RADIUS_KM, skyDirection, skyPosition, yawToHeadingDeg } from "./skyMath";
 
@@ -17,13 +17,14 @@ export interface SkyBodies {
 
 export interface SkyScene {
   update(bodies: SkyBodies): void;
+  updateLandscape(data: LandscapeData): void;
   lookAt(azimuthDeg: number, elevationDeg: number): void;
   dispose(): void;
 }
 
 interface Callbacks {
   onHeading(headingDeg: number): void;
-  onTextureError(texture: "color" | "elevation"): void;
+  onTextureError(): void;
 }
 
 export function createSkyScene(
@@ -162,6 +163,10 @@ export function createSkyScene(
         earth.mesh.position.copy(skyPosition(earthBody.azimuth_deg, earthBody.elevation_deg));
         earth.mesh.scale.setScalar(apparentRadius(BODY_RADIUS_KM.earth, earthBody.range_km));
       }
+    },
+
+    updateLandscape(data) {
+      ground.setLandscape(data);
     },
 
     lookAt(azimuthDeg, elevationDeg) {
