@@ -89,7 +89,7 @@ export function InsolationChart({ series, currentUtc, visible = BOTH }: Props) {
           sampling: "lttb",
           color: s.color,
           lineStyle: { width: 1.5 },
-          areaStyle: multi || showEarth ? undefined : { opacity: 0.15 },
+          areaStyle: multi ? undefined : { opacity: 0.15 },
           markLine:
             i === 0 && nowIdx >= 0
               ? {
@@ -141,15 +141,12 @@ export function InsolationChart({ series, currentUtc, visible = BOTH }: Props) {
     const legendNames = [...new Set(lines.map((l) => l.name))].sort(
       (a, b) => Number(a === BELOW_HORIZON_NAME) - Number(b === BELOW_HORIZON_NAME)
     );
-    const showLegend = multi || showEarth;
 
     chartRef.current?.setOption(
       {
         animation: false,
-        grid: { left: 48, right: showEarth ? 44 : 16, top: showLegend ? 52 : 24, bottom: 28 },
-        legend: showLegend
-          ? { top: 0, data: legendNames, textStyle: { color: LABEL }, itemWidth: 14, itemHeight: 2 }
-          : undefined,
+        grid: { left: 48, right: 44, top: 52, bottom: 28 },
+        legend: { top: 0, data: legendNames, textStyle: { color: LABEL }, itemWidth: 14, itemHeight: 2 },
         tooltip: {
           trigger: "axis",
           formatter: (params: TooltipParam[]) => {
