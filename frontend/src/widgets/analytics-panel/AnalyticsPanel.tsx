@@ -6,6 +6,7 @@ import { POINT_COLORS } from "@/shared/config";
 import { cn, formatDeg as deg, nowUtc } from "@/shared/lib";
 import { Button, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui";
 import { CompareView } from "./CompareView";
+import { EarthElevationChart, type EarthElevationSeries } from "./EarthElevationChart";
 import { GraphWindow } from "./GraphWindow";
 import { PointChips } from "./PointChips";
 
@@ -139,6 +140,9 @@ function PointView({ query, utc, color, days, onDays }: PointViewProps) {
         </tbody>
       </table>
 
+      <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Earth Line-of-Sight</h3>
+      <EarthVisibilitySection visibility={data.earth_visibility} utc={utc} color={color} />
+
       <div className="mt-5 mb-1 flex items-center justify-between">
         <h3 className="m-0 font-medium text-muted-foreground">Illumination</h3>
         <GraphWindow days={days} onChange={onDays} />
@@ -149,6 +153,87 @@ function PointView({ query, utc, color, days, onDays }: PointViewProps) {
       </p>
       <InsolationChart series={series} currentUtc={utc} />
       <p className="mt-1 text-xs text-muted-foreground">{days} days around the selected time, hourly samples.</p>
+    </div>
+  );
+}
+
+function formatDuration(seconds: number): string {
+  const hours = seconds / 3600;
+  if (hours < 24) return `${hours.toFixed(1)}h`;
+  const days = Math.floor(hours / 24);
+  const remHours = Math.round(hours % 24);
+  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+}
+
+function shortUtc(iso: string): string {
+  return iso.slice(5, 16).replace("T", " ");
+}
+
+function EarthVisibilitySection({
+  visibility,
+  utc,
+  color,
+}: {
+  visibility: NonNullable<SurfaceQueryState["data"]>["earth_visibility"];
+  utc: string;
+  color: string;
+}) {
+  const earthSeries = useMemo<EarthElevationSeries[]>(
+    () =>
+      visibility.elevation_graph?.length
+        ? [{ name: "Earth elevation", color, data: visibility.elevation_graph }]
+        : [],
+    [visibility.elevation_graph, color]
+  );
+
+  if (visibility.always_visible) {
+    return (
+      <div>
+        <p className="m-0 text-xs text-muted-foreground">
+          Always in direct view (100% of ±1 lunar day, max {deg(visibility.windows[0]?.max_elevation_deg ?? 0)}).
+        </p>
+        {earthSeries.length > 0 && <EarthElevationChart series={earthSeries} currentUtc={utc} />}
+      </div>
+    );
+  }
+  if (visibility.never_visible) {
+    return (
+      <div>
+        <p className="m-0 text-xs text-muted-foreground">
+          Never in direct view (0% of ±1 lunar day — far side).
+        </p>
+        {earthSeries.length > 0 && <EarthElevationChart series={earthSeries} currentUtc={utc} />}
+      </div>
+    );
+  }
+  const pct = (visibility.visible_fraction * 100).toFixed(1);
+  return (
+    <div>
+      <p className="m-0 text-xs text-muted-foreground">
+        Visible {pct}% of ±1 lunar day ({visibility.windows.length}{" "}
+        {visibility.windows.length === 1 ? "window" : "windows"}).
+      </p>
+      {earthSeries.length > 0 && <EarthElevationChart series={earthSeries} currentUtc={utc} />}
+      <table className="mt-2 w-full border-collapse text-xs tabular-nums">
+        <thead>
+          <tr className="text-muted-foreground">
+            <th className="py-1 text-left font-medium">Rise (UTC)</th>
+            <th className="py-1 text-left font-medium">Set (UTC)</th>
+            <th className="py-1 text-right font-medium">Duration</th>
+            <th className="py-1 text-right font-medium">Max</th>
+          </tr>
+        </thead>
+        <tbody>
+          {visibility.windows.map((w, i) => (
+            <tr key={i} className="border-t border-border">
+              <td className="py-1">{w.clipped_start ? `≤ ${shortUtc(w.rise_utc)}` : shortUtc(w.rise_utc)}</td>
+              <td className="py-1">{w.clipped_end ? `≥ ${shortUtc(w.set_utc)}` : shortUtc(w.set_utc)}</td>
+              <td className="py-1 text-right">{formatDuration(w.duration_s)}</td>
+              <td className="py-1 text-right">{deg(w.max_elevation_deg)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
