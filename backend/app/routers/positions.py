@@ -1,9 +1,12 @@
 from fastapi import APIRouter, HTTPException, Query
 from ..schemas import SurfaceQueryRequest, SurfaceQueryResponse, BodyResult, InsolationResult
 from app.service.spice_service import query_surface, calculate_insolation_series
-from app.service.landscape_service import get_landscape_map
+from app.service.landscape_service import get_landscape_map, has_map_data
 
 router = APIRouter(prefix="/positions", tags=["positions"])
+
+_NO_LANDSCAPE_DATA_WARNING = ("This doesn't account for landscape since no map "
+                              "data was available for this region")
 
 
 @router.post("/surface", response_model=SurfaceQueryResponse)
@@ -12,6 +15,10 @@ async def surface_query(req: SurfaceQueryRequest):
         raw = query_surface(req.utc, req.lat_deg, req.lon_deg, req.alt_km)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    warnings = []
+    if not has_map_data(req.lat_deg, req.lon_deg):
+        warnings.append(_NO_LANDSCAPE_DATA_WARNING)
 
     return SurfaceQueryResponse(
         earth=BodyResult(
@@ -30,6 +37,7 @@ async def surface_query(req: SurfaceQueryRequest):
             insolation_watts=raw["insolation_watts"],
             insolation_graph=raw["insolation_graph"]
         ),
+        warnings=warnings,
     )
 
 @router.get("/insolation")

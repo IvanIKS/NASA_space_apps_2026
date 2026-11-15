@@ -24,5 +24,6 @@ class SurfaceQueryResponse(BaseModel):
     earth: BodyResult
     sun: BodyResult
     insolation: InsolationResult
+    warnings: list[str] = []
 
 
