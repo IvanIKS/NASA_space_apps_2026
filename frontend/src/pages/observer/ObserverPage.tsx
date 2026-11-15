@@ -52,12 +52,12 @@ export function ObserverPage({ selection, queries, actions, relief }: Props) {
             />
             <p className="pointer-events-none absolute bottom-2 left-3 m-0 text-[11px] text-muted-foreground">
               {selection.relief !== "off" && relief.url
-                ? `Imagery: NASA SVS, LRO · Relief: LROC WAC GLD100, 10 km cells${selection.relief === "3d" ? " · heights ×8" : ""}`
+                ? `Imagery: NASA SVS, LRO · Landscape: LROC WAC GLD100, 10 km cells${selection.relief === "3d" ? " · heights ×8" : ""}`
                 : "Imagery: NASA Scientific Visualization Studio, LRO"}
             </p>
             {selection.relief !== "off" && relief.error && (
               <p className="absolute top-3 left-3 m-0 rounded-md bg-card/90 px-2 py-1 text-xs text-destructive">
-                Relief unavailable: {relief.error}
+                Landscape unavailable: {relief.error}
               </p>
             )}
           </>
@@ -71,7 +71,7 @@ export function ObserverPage({ selection, queries, actions, relief }: Props) {
               disabled={relief.loading}
               title={selection.relief === "shaded" ? "Back to the colour map" : "Shade the globe with LRO terrain"}
             >
-              {relief.loading ? "Loading relief…" : "Relief"}
+              {relief.loading ? "Loading landscape…" : "Landscape"}
             </ViewToggleButton>
           )}
           {!surface && (

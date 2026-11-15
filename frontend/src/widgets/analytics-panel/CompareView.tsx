@@ -108,7 +108,7 @@ export function CompareView({ queries, utc, days, onDays, visible, onVisible }: 
             <th className="py-1 text-right font-medium" title="Earth elevation">Earth</th>
             <th className="py-1 text-right font-medium" title="Share of the graph window with direct Earth line of sight">LOS</th>
             {anySlope && <th className="py-1 text-right font-medium" title="Terrain slope and the direction it faces">Slope</th>}
-            <th className="py-1 text-right font-medium" title="Illumination now">W/m²</th>
+            <th className="py-1 text-right font-medium" title="Insolation now">W/m²</th>
             <th className="py-1 text-right font-medium" title="Share of the graph window in sunlight">Lit</th>
             <th className="py-1 text-right font-medium" title="Next sunrise ↑ or sunset ↓">Next</th>
           </tr>
