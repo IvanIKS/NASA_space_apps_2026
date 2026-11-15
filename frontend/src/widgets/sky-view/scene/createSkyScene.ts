@@ -6,10 +6,9 @@ import { apparentRadius, azimuthToYaw, BODY_RADIUS_KM, skyDirection, skyPosition
 
 const LOOK_SPEED = 0.004;
 const MAX_PITCH = Math.PI / 2 - 0.05;
-const EYE_HEIGHT = 1.7;
-const BASE_INTENSITY = 0.9;
-const SUN_INTENSITY = 1.4;
-const EARTHSHINE_INTENSITY = 0.25;
+const EYE_HEIGHT_KM = 0.0017;
+const SUN_INTENSITY = 2.4;
+const NIGHT_FILL_INTENSITY = 0.12;
 
 export interface SkyBodies {
   earth: BodyResult | null;
@@ -24,7 +23,7 @@ export interface SkyScene {
 
 interface Callbacks {
   onHeading(headingDeg: number): void;
-  onTextureError(): void;
+  onTextureError(texture: "color" | "elevation"): void;
 }
 
 export function createSkyScene(
@@ -36,25 +35,37 @@ export function createSkyScene(
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x000000, 90, 230);
 
-  const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 500);
-  camera.position.set(0, EYE_HEIGHT, 0);
+  const camera = new THREE.PerspectiveCamera(70, 1, 0.001, 500);
+  camera.position.set(0, EYE_HEIGHT_KM, 0);
   camera.rotation.order = "YXZ";
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.BasicShadowMap;
   renderer.autoClear = false;
   renderer.setClearColor(0x000000, 1);
   container.appendChild(renderer.domElement);
   const canvas = renderer.domElement;
 
-  const sunLight = new THREE.DirectionalLight(0xfff4e0, 0);
-  const earthshine = new THREE.DirectionalLight(0x7fa6e6, 0);
-  const base = new THREE.HemisphereLight(0xffffff, 0x666666, BASE_INTENSITY);
+  const sunLight = new THREE.DirectionalLight(0xfff0d8, 0);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(2048, 2048);
+  sunLight.shadow.camera.left = -60;
+  sunLight.shadow.camera.right = 60;
+  sunLight.shadow.camera.top = 60;
+  sunLight.shadow.camera.bottom = -60;
+  sunLight.shadow.camera.near = 0.1;
+  sunLight.shadow.camera.far = 250;
+  sunLight.shadow.camera.updateProjectionMatrix();
+  sunLight.shadow.bias = -0.0001;
+  sunLight.shadow.normalBias = 0.002;
+  const nightFill = new THREE.HemisphereLight(0x899bc2, 0x332a20, NIGHT_FILL_INTENSITY);
   const earthLight = new THREE.DirectionalLight(0xffffff, 3.5);
   earthLight.layers.set(EARTH_LAYER);
-  scene.add(sunLight, sunLight.target, earthshine, earthshine.target, base, earthLight, earthLight.target);
+  scene.add(sunLight, sunLight.target, nightFill, earthLight, earthLight.target);
 
   const ground = createGround(latitudeDeg, longitudeDeg, renderer.capabilities.getMaxAnisotropy(), onTextureError);
   const sun = createSun();
@@ -150,10 +161,7 @@ export function createSkyScene(
       if (earthBody) {
         earth.mesh.position.copy(skyPosition(earthBody.azimuth_deg, earthBody.elevation_deg));
         earth.mesh.scale.setScalar(apparentRadius(BODY_RADIUS_KM.earth, earthBody.range_km));
-        earthshine.position.copy(skyDirection(earthBody.azimuth_deg, earthBody.elevation_deg)).multiplyScalar(100);
       }
-      const night = !sunBody || sunBody.elevation_deg <= 0;
-      earthshine.intensity = night && earthBody && earthBody.elevation_deg > 0 ? EARTHSHINE_INTENSITY : 0;
     },
 
     lookAt(azimuthDeg, elevationDeg) {
