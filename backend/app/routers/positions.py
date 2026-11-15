@@ -5,6 +5,7 @@ from ..schemas import (
     EarthVisibilityResponse,
     InsolationResult,
     LandscapeMapResponse,
+    SlopeResult,
     SurfaceQueryRequest,
     SurfaceQueryResponse,
 )
@@ -16,6 +17,7 @@ from app.service.spice_service import (
 from app.service.landscape_service import (
     get_landscape_map,
     get_landscape_map_low_res,
+    get_slope_and_aspect,
     has_map_data,
 )
 
@@ -36,6 +38,12 @@ async def surface_query(req: SurfaceQueryRequest):
     if not has_map_data(req.lat_deg, req.lon_deg):
         warnings.append(_NO_LANDSCAPE_DATA_WARNING)
 
+    slope_aspect = get_slope_and_aspect(req.lat_deg, req.lon_deg)
+    slope_result = (
+        SlopeResult(slope_deg=slope_aspect[0], aspect_deg=slope_aspect[1])
+        if slope_aspect is not None else None
+    )
+
     return SurfaceQueryResponse(
         earth=BodyResult(
             azimuth_deg=raw["earth"]["azimuth_deg"],
@@ -53,6 +61,7 @@ async def surface_query(req: SurfaceQueryRequest):
             insolation_watts=raw["insolation_watts"],
             insolation_graph=raw["insolation_graph"]
         ),
+        slope=slope_result,
         earth_visibility=EarthVisibilityResponse(**raw["earth_visibility"]),
         warnings=warnings,
     )

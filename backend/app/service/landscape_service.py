@@ -1,5 +1,6 @@
 import math
 import os
+import re
 import struct
 from pathlib import Path
 
@@ -36,7 +37,29 @@ _DEFAULT_SUN_ANGULAR_RADIUS_DEG = math.degrees(math.asin(696340.0 / 149597870.7)
 
 # The GLD100 mosaic tiles live next to the backend package, in backend/moon-map.
 _MAP_DIR = Path(__file__).resolve().parent.parent.parent / "moon-map"
-_TILE_GLOB = "WAC_GLD100_*.TIF"
+# Both the full-precision ".IMG" DEM and the 8-bit ".TIF" browse are accepted;
+# ".IMG" is preferred when a tile is present in both formats.
+_TILE_GLOB = "WAC_GLD100_*.IMG"
+_TILE_GLOBS = ("WAC_GLD100_*.IMG", "WAC_GLD100_*.TIF")
+
+# Source for auto-download: the full-precision GLD100 PDS ".IMG" tiles (16-bit
+# DEM in metres) live under DATA/SDP, not the EXTRAS/BROWSE path that serves the
+# 8-bit ".TIF" browse rasters.
+_FILE_SERVER_URL = ("https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/"
+                    "LROLRC_2001/DATA/SDP/WAC_GLD100/")
+_REQUIRED_MAP_ADDRESSES = (
+    "WAC_GLD100_E300N2250_100M",
+    "WAC_GLD100_E300N3150_100M",
+    "WAC_GLD100_E300N0450_100M",
+    "WAC_GLD100_E300N1350_100M",
+    "WAC_GLD100_E300S2250_100M",
+    "WAC_GLD100_E300S3150_100M",
+    "WAC_GLD100_E300S0450_100M",
+    "WAC_GLD100_E300S1350_100M",
+    # northern and southern pole areas
+    "WAC_GLD100_P900N0000_100M",
+    "WAC_GLD100_P900S0000_100M",
+)
 
 # TIFF tag type -> (struct code, byte size).
 _TIFF_TYPES = {1: ("B", 1), 3: ("H", 2), 4: ("I", 4), 12: ("d", 8)}
@@ -44,30 +67,43 @@ _TIFF_TYPES = {1: ("B", 1), 3: ("H", 2), 4: ("I", 4), 12: ("d", 8)}
 # GeoTIFF ProjCoordTransGeoKey value identifying a polar stereographic raster.
 _CT_POLAR_STEREOGRAPHIC = 15
 
-# Pixel value the GLD100 byte product uses for "no coverage": outside the
-# polar discs and in the caps right at the poles (beyond about +-79 deg).
-_NODATA = 0
+# Per-product pixel encoding. The 8-bit ".TIF" browse raster has no real nodata
+# sentinel (it uses 0 for "no coverage"); the 16-bit ".IMG" DEM stores signed
+# metres with CORE_NULL = -32768 for "no coverage" (outside the polar discs and
+# in the caps right at the poles, beyond about +-79 deg). 0 is a *valid*
+# elevation in the ".IMG" product, so it must not double as nodata there.
+_TIFF_NODATA = 0
+_IMG_NODATA = -32768
+
+# PDS SAMPLE_TYPE + SAMPLE_BITS -> numpy dtype string.
+_PDS_SAMPLE_DTYPES = {
+    ("LSB_INTEGER", 16): "<i2",
+    ("MSB_INTEGER", 16): ">i2",
+    ("LSB_UNSIGNED_INTEGER", 8): "u1",
+    ("UNSIGNED_INTEGER", 8): "u1",
+}
 
 
 class _Tile:
     """A single GLD100 DEM tile, memory-mapped lazily on first access.
 
-    The pixel data is raw, uncompressed, single-band uint8 with one row per
-    strip laid out contiguously, so the whole image can be mapped as a single
-    (height, width) ``np.memmap`` at a fixed byte offset. Nothing is read from
-    disk until ``.array`` is touched; the OS then pages in only the rows that
-    are actually indexed.
+    The pixel data is raw, uncompressed, single-band, with one row laid out
+    contiguously after the next, so the whole image can be mapped as a single
+    (height, width) ``np.memmap`` at a fixed byte offset. ``dtype`` is the
+    product's sample encoding (``uint8`` for the ".TIF" browse, ``<i2`` signed
+    metres for the ".IMG" DEM). Nothing is read from disk until ``.array`` is
+    touched; the OS then pages in only the rows that are actually indexed.
     """
 
     __slots__ = (
         "path", "width", "height", "data_offset",
         "lon_min", "lon_max", "lat_min", "lat_max",
-        "deg_per_px_x", "deg_per_px_y", "_mm",
+        "deg_per_px_x", "deg_per_px_y", "dtype", "nodata", "_mm",
     )
 
     def __init__(self, path, width, height, data_offset,
                  lon_min, lon_max, lat_min, lat_max,
-                 deg_per_px_x, deg_per_px_y):
+                 deg_per_px_x, deg_per_px_y, dtype="u1", nodata=_TIFF_NODATA):
         self.path = path
         self.width = width
         self.height = height
@@ -78,6 +114,8 @@ class _Tile:
         self.lat_max = lat_max
         self.deg_per_px_x = deg_per_px_x
         self.deg_per_px_y = deg_per_px_y
+        self.dtype = dtype
+        self.nodata = nodata
         self._mm = None
 
     @property
@@ -85,7 +123,7 @@ class _Tile:
         """The tile's pixel data as a lazily-created read-only memmap."""
         if self._mm is None:
             self._mm = np.memmap(
-                self.path, dtype=np.uint8, mode="r",
+                self.path, dtype=np.dtype(self.dtype), mode="r",
                 offset=self.data_offset, shape=(self.height, self.width),
             )
         return self._mm
@@ -112,17 +150,18 @@ class _PolarTile:
     south disc). Valid data forms a disc centred on the pole whose edge meets
     the +-60 deg boundary of the equirectangular tiles; pixels outside the
     disc -- and in a cap right at the pole (beyond about +-79 deg) where the
-    GLD100 has no stereo coverage -- hold the 0 nodata value.
+    GLD100 has no stereo coverage -- hold the nodata value.
     """
 
     __slots__ = (
         "path", "width", "height", "data_offset", "hemisphere",
         "m_per_px_x", "m_per_px_y", "topleft_x", "topleft_y",
-        "lat_edge", "rho_clamp", "_mm",
+        "lat_edge", "rho_clamp", "dtype", "nodata", "_mm",
     )
 
     def __init__(self, path, width, height, data_offset, hemisphere,
-                 m_per_px_x, m_per_px_y, topleft_x, topleft_y):
+                 m_per_px_x, m_per_px_y, topleft_x, topleft_y,
+                 dtype="u1", nodata=_TIFF_NODATA):
         self.path = path
         self.width = width
         self.height = height
@@ -132,6 +171,8 @@ class _PolarTile:
         self.m_per_px_y = m_per_px_y
         self.topleft_x = topleft_x
         self.topleft_y = topleft_y
+        self.dtype = dtype
+        self.nodata = nodata
         # Latitude (absolute) of the disc edge: where the stereographic radius
         # rho equals the raster's half-extent.
         rho_max = min(abs(topleft_x), abs(topleft_y))
@@ -148,7 +189,7 @@ class _PolarTile:
         """The tile's pixel data as a lazily-created read-only memmap."""
         if self._mm is None:
             self._mm = np.memmap(
-                self.path, dtype=np.uint8, mode="r",
+                self.path, dtype=np.dtype(self.dtype), mode="r",
                 offset=self.data_offset, shape=(self.height, self.width),
             )
         return self._mm
@@ -263,24 +304,85 @@ def _read_tiff_metadata(path: Path) -> dict:
         path=path, width=width, height=height, data_offset=data_offset,
         sx=sx, sy=sy, topleft_x=topleft_x, topleft_y=topleft_y,
         proj_ct=proj_ct, origin_lat=origin_lat,
+        dtype="u1", nodata=_TIFF_NODATA,
+    )
+
+
+def _read_img_metadata(path: Path) -> dict:
+    """Parse the attached ASCII label of a GLD100 PDS ``.IMG`` tile and return
+    the same metadata shape as :func:`_read_tiff_metadata`, so :func:`_make_tile`
+    can treat both products uniformly.
+
+    The ".IMG" is a single-band, band-sequential raster whose rows sit back to
+    back after the label, so it memmaps as one block at ``data_offset``."""
+    # The attached label is ASCII in the first LABEL_RECORDS records; for these
+    # products one record (<= 55 KiB) holds it, so a single chunk covers it.
+    with open(path, "rb") as fh:
+        label = fh.read(65536).decode("ascii", "replace")
+
+    def text(key):
+        m = re.search(r"^\s*" + re.escape(key) + r"\s*=\s*(.+?)\s*$",
+                      label, re.MULTILINE)
+        if m is None:
+            raise ValueError(f"{path.name}: PDS label missing {key}")
+        return m.group(1).strip()
+
+    def num(key):
+        # Values may carry a unit, e.g. "100.0 <METERS/PIXEL>"; take the number.
+        return float(text(key).split()[0])
+
+    record_bytes = int(num("RECORD_BYTES"))
+    image_record = int(num("^IMAGE"))
+    width = int(num("LINE_SAMPLES"))
+    height = int(num("LINES"))
+    data_offset = (image_record - 1) * record_bytes
+
+    sample_type = text("SAMPLE_TYPE").strip('"')
+    sample_bits = int(num("SAMPLE_BITS"))
+    dtype = _PDS_SAMPLE_DTYPES.get((sample_type, sample_bits))
+    if dtype is None:
+        raise ValueError(
+            f"{path.name}: unsupported PDS sample encoding "
+            f"{sample_type} {sample_bits}-bit")
+
+    map_scale = num("MAP_SCALE")  # metres/pixel
+    sample_off = num("SAMPLE_PROJECTION_OFFSET")
+    line_off = num("LINE_PROJECTION_OFFSET")
+    # Projected (metre) coordinate of the top-left pixel's corner. PDS gives the
+    # projection origin as a pixel offset from the centre of pixel (1, 1); the
+    # corner is half a pixel further out (line/sample 0.5).
+    topleft_x = (-0.5 - sample_off) * map_scale
+    topleft_y = (line_off + 0.5) * map_scale
+
+    proj_type = text("MAP_PROJECTION_TYPE").strip('"')
+    is_polar = "POLAR" in proj_type.upper()
+
+    return dict(
+        path=path, width=width, height=height, data_offset=data_offset,
+        sx=map_scale, sy=map_scale, topleft_x=topleft_x, topleft_y=topleft_y,
+        proj_ct=_CT_POLAR_STEREOGRAPHIC if is_polar else None,
+        origin_lat=num("CENTER_LATITUDE"),
+        dtype=dtype, nodata=_IMG_NODATA,
     )
 
 
 def _make_tile(meta: dict):
-    """Build the right tile type from raw GeoTIFF metadata: a polar
-    stereographic disc for the P900 tiles, an equirectangular band otherwise."""
+    """Build the right tile type from raw tile metadata: a polar stereographic
+    disc for the P900 tiles, an equirectangular band otherwise. Works for both
+    the ".TIF" and ".IMG" readers, which produce the same metadata shape."""
     if meta["proj_ct"] == _CT_POLAR_STEREOGRAPHIC:
         origin_lat = meta["origin_lat"]
         if origin_lat is None:
             raise ValueError(
-                f"{meta['path'].name}: polar stereographic tile without a "
-                f"ProjNatOriginLat geokey; cannot tell which pole it covers")
+                f"{meta['path'].name}: polar stereographic tile without an "
+                f"origin latitude; cannot tell which pole it covers")
         return _PolarTile(
             path=meta["path"], width=meta["width"], height=meta["height"],
             data_offset=meta["data_offset"],
             hemisphere=1.0 if origin_lat >= 0 else -1.0,
             m_per_px_x=meta["sx"], m_per_px_y=meta["sy"],
             topleft_x=meta["topleft_x"], topleft_y=meta["topleft_y"],
+            dtype=meta["dtype"], nodata=meta["nodata"],
         )
 
     deg_per_px_x = meta["sx"] * _DEG_PER_M
@@ -293,7 +395,25 @@ def _make_tile(meta: dict):
         lon_min=lon_min, lon_max=lon_min + meta["width"] * deg_per_px_x,
         lat_min=lat_max - meta["height"] * deg_per_px_y, lat_max=lat_max,
         deg_per_px_x=deg_per_px_x, deg_per_px_y=deg_per_px_y,
+        dtype=meta["dtype"], nodata=meta["nodata"],
     )
+
+
+def _discover_tiles(base: Path) -> "list[Path]":
+    """Find tile files under ``base``, preferring the ".IMG" DEM over the ".TIF"
+    browse when a tile exists in both formats."""
+    by_stem = {}
+    for pattern in _TILE_GLOBS:  # ".IMG" first, so it wins the setdefault
+        for path in sorted(base.glob(pattern)):
+            by_stem.setdefault(path.stem, path)
+    return [by_stem[stem] for stem in sorted(by_stem)]
+
+
+def _read_tile_metadata(path: Path) -> dict:
+    """Dispatch to the right header reader by file extension."""
+    if path.suffix.upper() == ".IMG":
+        return _read_img_metadata(path)
+    return _read_tiff_metadata(path)
 
 
 def load_map(map_dir=None) -> "list[_Tile]":
@@ -310,22 +430,25 @@ def load_map(map_dir=None) -> "list[_Tile]":
         return _LANDSCAPE_MAP
 
     base = Path(map_dir) if map_dir is not None else _MAP_DIR
-    paths = sorted(base.glob(_TILE_GLOB))
+    paths = _discover_tiles(base)
     if not paths:
-        dotenv_path = Path(__file__).resolve().parent.parent / ".env"
-        if load_dotenv is not None:
-            load_dotenv(dotenv_path=dotenv_path)
-        _SHOULD_DOWNLOAD_MAP = os.getenv(_dotenv_map_var_name, "").strip().lower() in ("1", "true", "yes")
-        if _SHOULD_DOWNLOAD_MAP:
+        # The .env lives in the backend root, next to moon-map (one level above
+        # the app package), same as _MAP_DIR is resolved.
+        dotenv_path = Path(__file__).resolve().parent.parent.parent / ".env"
+        load_dotenv(dotenv_path=dotenv_path)
+
+        #This is dumb, but bool("False") is True in Python.
+        _SHOULD_DOWNLOAD_MAP = os.getenv(_dotenv_map_var_name)
+        if _SHOULD_DOWNLOAD_MAP is not None and _SHOULD_DOWNLOAD_MAP == "True":
             _download_map_from_nasa_site()
-            paths = sorted(base.glob(_TILE_GLOB))
+            paths = _discover_tiles(base)
         else:
             print("No map found. Please download it from NASA site to have it available in the backend."
                   " For now all functionality related to landscape will be disabled.")
             return []
 
     for path in paths:
-        tile = _make_tile(_read_tiff_metadata(path))
+        tile = _make_tile(_read_tile_metadata(path))
         if isinstance(tile, _PolarTile):
             _POLAR_MAPS.append(tile)
         else:
@@ -335,36 +458,20 @@ def load_map(map_dir=None) -> "list[_Tile]":
 
 
 def _download_map_from_nasa_site():
-    """Download the GLD100 mosaic tiles from the NASA LROC site into
-    ``moon-map``.
+    """Download the full-precision GLD100 PDS ``.IMG`` tiles (16-bit DEM in
+    metres) from the NASA LROC site into ``moon-map``.
 
-    https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/EXTRAS/BROWSE/WAC_GLD100/
+    The ``.IMG`` products live under DATA/SDP, not the EXTRAS/BROWSE path that
+    serves the 8-bit ``.TIF`` browse rasters.
+    https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/DATA/SDP/WAC_GLD100/
     """
-
-    file_server_url = "https://pds.lroc.im-ldi.com/data/LRO-L-LROC-5-RDR-V1.0/LROLRC_2001/EXTRAS/BROWSE/WAC_GLD100/"
-
-    required_map_addresses = [
-        "WAC_GLD100_E300N2250_100M",
-        "WAC_GLD100_E300N3150_100M",
-        "WAC_GLD100_E300N0450_100M",
-        "WAC_GLD100_E300N1350_100M",
-        "WAC_GLD100_E300S2250_100M",
-        "WAC_GLD100_E300S3150_100M",
-        "WAC_GLD100_E300S0450_100M",
-        "WAC_GLD100_E300S1350_100M",
-        #northern and southern pole areas
-        "WAC_GLD100_P900N0000_100M",
-        "WAC_GLD100_P900S0000_100M"
-    ]
 
     _MAP_DIR.mkdir(parents=True, exist_ok=True)
 
-    for address in required_map_addresses:
-        # The BROWSE path serves the raster at "<name>.TIF" (and 302-redirects
-        # to NASA's S3 store, which urlopen follows automatically).
-        url = file_server_url + address + ".TIF"
-        # Name the file so load_map()'s WAC_GLD100_*.TIF glob picks it up.
-        dest = _MAP_DIR / f"{address}.TIF"
+    for address in _REQUIRED_MAP_ADDRESSES:
+        # urlopen follows the 302 redirect to NASA's S3 store automatically.
+        url = _FILE_SERVER_URL + address + ".IMG"
+        dest = _MAP_DIR / f"{address}.IMG"
         if dest.exists():
             print(f"Already have {dest.name}, skipping.")
             continue
@@ -374,14 +481,16 @@ def _download_map_from_nasa_site():
         try:
             with urllib.request.urlopen(url) as response, open(tmp, "wb") as fh:
                 # Fail loudly on an error/redirect page rather than saving HTML
-                # into a .TIF (which later trips the TIFF magic-byte check).
-                magic = response.read(2)
-                if magic not in (b"II", b"MM"):
+                # into a .IMG. A PDS3 product begins with its attached ASCII
+                # label, i.e. the literal "PDS_VERSION_ID" keyword.
+                header = response.read(14)
+                if not header.startswith(b"PDS_VERSION_ID"):
                     raise ValueError(
-                        f"{url} did not return a TIFF (first bytes {magic!r}); "
-                        f"got content-type {response.headers.get('Content-Type')!r}"
+                        f"{url} did not return a PDS label (first bytes "
+                        f"{header!r}); got content-type "
+                        f"{response.headers.get('Content-Type')!r}"
                     )
-                fh.write(magic)
+                fh.write(header)
                 shutil.copyfileobj(response, fh)
             tmp.replace(dest)
         except Exception as exc:
@@ -424,7 +533,13 @@ def raw_to_elevation_m(raw: "int | np.ndarray") -> "float | np.ndarray":
 
 
 def get_elevation(lat: float, lon: float) -> int:
-    """Return the raw 8-bit DEM value at a lat/lon via the lazy memmap."""
+    """Return the DEM value at a lat/lon via the lazy memmap.
+
+    For the ".IMG" product this is the elevation in metres relative to the
+    1737.4 km reference sphere (SCALING_FACTOR 1.0, OFFSET 0.0). For the 8-bit
+    ".TIF" browse it is the product's byte-scaled value, not metres. A nodata
+    pixel (e.g. right at the poles) returns the tile's nodata sentinel; use
+    :func:`has_map_data` to tell real data from nodata."""
     if not _MAP_LOADED:
         raise ValueError("Moon map is not present in folder.")
 
@@ -487,14 +602,85 @@ def sample_elevations_km(lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
 
 def has_map_data(lat: float, lon: float) -> bool:
     """Whether real landscape data exists for a point: the mosaic is loaded,
-    a tile covers the point, and the sampled pixel is not the nodata value
-    (the GLD100 has no coverage right at the poles, beyond about +-79 deg)."""
+    a tile covers the point, and the sampled pixel is not that tile's nodata
+    value (the GLD100 has no coverage right at the poles, beyond about +-79
+    deg). Note 0 is a valid elevation in the ".IMG" product, so the per-tile
+    nodata sentinel -- not a blanket 0 -- is what marks missing data."""
     if not _MAP_LOADED:
         return False
     try:
-        return get_elevation(lat, lon) != _NODATA
+        tile = _find_tile(lat, lon)
     except ValueError:
         return False
+    row, col = tile.pixel_index(lat, lon)
+    return int(tile.array[row, col]) != tile.nodata
+
+
+# Default horizontal baseline (metres) for slope sampling: one DEM pixel, the
+# finest scale the 100 m/px GLD100 supports.
+_SLOPE_BASELINE_M = 100.0
+
+
+def _sample_elevation(lat: float, lon: float):
+    """Elevation (metres) at a point, or None when out of coverage or nodata."""
+    try:
+        tile = _find_tile(lat, lon)
+    except ValueError:
+        return None
+    row, col = tile.pixel_index(lat, lon)
+    value = int(tile.array[row, col])
+    return None if value == tile.nodata else value
+
+
+def _axis_gradient(far, near, center, step):
+    """Elevation gradient (m/m) along one axis: a central difference when both
+    ends have data, a one-sided difference when only one does, else None."""
+    if far is not None and near is not None:
+        return (far - near) / (2.0 * step)
+    if far is not None and center is not None:
+        return (far - center) / step
+    if near is not None and center is not None:
+        return (center - near) / step
+    return None
+
+
+def get_slope_and_aspect(lat: float, lon: float,
+                         baseline_m: float = _SLOPE_BASELINE_M):
+    """Return ``(slope_deg, aspect_deg)`` of the terrain at a point, or ``None``
+    when the DEM has no data to compute it there.
+
+    The gradient is estimated by sampling the elevation at the point and at four
+    neighbours ``baseline_m`` metres to the north/south/east/west; sampling in
+    lat/lon lets get_elevation pick the right tile and projection for each
+    point, so this works across tile seams and in the polar discs. ``slope_deg``
+    is the steepest-descent angle; ``aspect_deg`` is the compass azimuth
+    (clockwise from north) the slope faces downhill. Slope is only meaningful on
+    the metre-valued ".IMG" product -- on the byte ".TIF" browse the numbers are
+    not real heights."""
+    if not _MAP_LOADED:
+        return None
+    center = _sample_elevation(lat, lon)
+    if center is None:
+        return None
+
+    dlat = baseline_m * _DEG_PER_M
+    dlon = baseline_m * _DEG_PER_M / math.cos(math.radians(lat))
+    north = _sample_elevation(lat + dlat, lon)
+    south = _sample_elevation(lat - dlat, lon)
+    east = _sample_elevation(lat, lon + dlon)
+    west = _sample_elevation(lat, lon - dlon)
+
+    gx = _axis_gradient(east, west, center, baseline_m)   # d(elev)/d(east)
+    gy = _axis_gradient(north, south, center, baseline_m)  # d(elev)/d(north)
+    if gx is None or gy is None:
+        return None
+
+    slope_deg = math.degrees(math.atan(math.hypot(gx, gy)))
+    # The uphill gradient is (gx, gy) in (east, north); the slope faces the
+    # opposite way. Azimuth is measured clockwise from north; flat ground
+    # (gx == gy == 0) gives 0.0.
+    aspect_deg = math.degrees(math.atan2(-gx, -gy)) % 360.0
+    return slope_deg, aspect_deg
 
 
 """This function returns the maximum distance to a landscape point that the sun could be obstructed by
@@ -679,8 +865,20 @@ def _assemble_landscape_map(
     step_x: int = 1,
     step_y: int = 1,
 ) -> np.ndarray:
-    """Assemble a (rows, cols) uint8 elevation grid for the requested bounds,
+    """Assemble a (rows, cols) elevation grid for the requested bounds,
     sampling every ``step_x``/``step_y`` native pixels."""
+    # Stitches across tile boundaries: the requested box may span the equator
+    # (north/south tiles), a 90 deg longitude seam, or wrap across the 0/360
+    # antimeridian. Rows beyond the +-60 deg equirectangular bands are
+    # resampled from the polar stereographic discs onto the same grid. Returns
+    # a newly-assembled (rows, cols) array in the tiles' own dtype; pixels with
+    # no coverage anywhere (e.g. right at the poles) hold the nodata sentinel.
+    #
+    # The band tiles share one exact global equirectangular pixel grid (each is
+    # exactly tile.width px per 90 deg lon and tile.height px per 60 deg lat),
+    # so we resolve everything in integer global pixel coordinates and copy the
+    # intersection of each tile with the request. Only the touched windows are
+    # read from the memmaps.
     if not _MAP_LOADED:
         raise ValueError("Moon map is not present in folder.")
 
@@ -690,6 +888,8 @@ def _assemble_landscape_map(
                          "grid is derived from them.")
     dppx = tiles[0].deg_per_px_x
     dppy = tiles[0].deg_per_px_y
+    nodata = tiles[0].nodata
+    out_dtype = np.dtype(tiles[0].dtype)
     north_top = 90.0
     global_width = int(round(360.0 / dppx))
     global_rows_total = int(round(180.0 / dppy))
@@ -729,7 +929,7 @@ def _assemble_landscape_map(
         dst_col += n_cols
     out_cols = dst_col
 
-    out = np.zeros((out_rows, out_cols), dtype=np.uint8)
+    out = np.full((out_rows, out_cols), nodata, dtype=out_dtype)
 
     for tile in tiles:
         tgr0, tgc0 = to_row(tile.lat_max), to_col(tile.lon_min)
@@ -785,7 +985,7 @@ def _assemble_landscape_map(
             # copied at the seam row is never overwritten.
             fill = ((rr >= 0) & (rr < ptile.height)
                     & (cc >= 0) & (cc < ptile.width)
-                    & (sub == _NODATA))
+                    & (sub == nodata))
             sub[fill] = ptile.array[rr[fill], cc[fill]]
     return out
 

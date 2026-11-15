@@ -11,6 +11,11 @@ class InsolationResult(BaseModel):
     insolation_watts: float
     insolation_graph: list[dict]
 
+class SlopeResult(BaseModel):
+    slope_deg: float
+    aspect_deg: float
+
+
 class RadioWindowResult(BaseModel):
     rise_utc: str
     set_utc: str
@@ -53,6 +58,7 @@ class SurfaceQueryResponse(BaseModel):
     earth: BodyResult
     sun: BodyResult
     insolation: InsolationResult
+    slope: SlopeResult | None = None
     earth_visibility: EarthVisibilityResponse
     warnings: list[str] = []
 
