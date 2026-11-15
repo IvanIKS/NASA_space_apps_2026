@@ -864,9 +864,8 @@ def _assemble_landscape_map(
     lon_end: float,
     step_x: int = 1,
     step_y: int = 1,
+    samples=None
 ) -> np.ndarray:
-    """Assemble a (rows, cols) elevation grid for the requested bounds,
-    sampling every ``step_x``/``step_y`` native pixels."""
     # Stitches across tile boundaries: the requested box may span the equator
     # (north/south tiles), a 90 deg longitude seam, or wrap across the 0/360
     # antimeridian. Rows beyond the +-60 deg equirectangular bands are
@@ -987,6 +986,10 @@ def _assemble_landscape_map(
                     & (cc >= 0) & (cc < ptile.width)
                     & (sub == nodata))
             sub[fill] = ptile.array[rr[fill], cc[fill]]
+    if samples is not None:
+        row_indices = np.rint(np.linspace(0, out_rows - 1, samples)).astype(np.intp)
+        col_indices = np.rint(np.linspace(0, out_cols - 1, samples)).astype(np.intp)
+        out = out[np.ix_(row_indices, col_indices)]
     return out
 
 
