@@ -60,6 +60,26 @@ def _body_elevation_deg(
     return float(np.degrees(np.arcsin(np.clip((pos @ up) / np.linalg.norm(pos), -1.0, 1.0))))
 
 
+def _body_az_el_deg(
+    target: str,
+    et: float,
+    obspos: np.ndarray,
+    east: np.ndarray,
+    north: np.ndarray,
+    up: np.ndarray,
+    frame: str = "MOON_ME",
+    abcorr: str = "LT+S",
+) -> tuple[float, float]:
+    """Return apparent (azimuth_deg, elevation_deg) of `target` in the local ENU frame."""
+    state, _ = spice.spkcpo(target, et, frame, "OBSERVER", abcorr, obspos, "MOON", "MOON_ME")
+    pos = np.array(state[:3])
+    r = float(np.linalg.norm(pos))
+    e, n, u = float(pos @ east), float(pos @ north), float(pos @ up)
+    az_deg = float(np.degrees(np.arctan2(e, n)) % 360.0)
+    el_deg = float(np.degrees(np.arcsin(np.clip(u / r, -1.0, 1.0))))
+    return az_deg, el_deg
+
+
 def query_surface(
     utc: str,
     lat_deg: float,
@@ -302,33 +322,47 @@ def earth_visibility_windows(
     if et_end <= et_start:
         raise ValueError("end_utc must be strictly after start_utc")
 
-    obspos, _, _, up = _observer_frame(lat_deg, lon_deg, alt_km)
+    obspos, east, north, up = _observer_frame(lat_deg, lon_deg, alt_km)
+    horizon_profile = landscape_service.get_horizon_profile(
+        lat_deg, lon_deg, observer_alt_km=alt_km, num_azimuths=360
+    )
 
-    def eval_el(et: float) -> float:
-        return _body_elevation_deg("EARTH", et, obspos, up, frame=frame, abcorr=abcorr)
+    def eval_el_and_margin(et: float) -> tuple[float, float]:
+        if horizon_profile is None:
+            el = _body_elevation_deg("EARTH", et, obspos, up, frame=frame, abcorr=abcorr)
+            return el, el - min_elevation_deg
+        az, el = _body_az_el_deg("EARTH", et, obspos, east, north, up, frame=frame, abcorr=abcorr)
+        threshold = max(min_elevation_deg, _interp_horizon(horizon_profile, az))
+        return el, el - threshold
+
+    def eval_margin(et: float) -> float:
+        return eval_el_and_margin(et)[1]
 
     times = np.arange(et_start, et_end, step_s, dtype=float)
     if len(times) == 0 or times[-1] < et_end:
         times = np.append(times, et_end)
 
-    elevations = [eval_el(float(t)) for t in times]
+    samples = [eval_el_and_margin(float(t)) for t in times]
+    elevations = [s[0] for s in samples]
+    margins = [s[1] for s in samples]
 
     raw_windows = []
-    in_view = elevations[0] > min_elevation_deg
+    in_view = margins[0] > 0.0
     current_rise = float(times[0]) if in_view else None
     current_max_el = elevations[0] if in_view else -90.0
     clipped_start = in_view
 
     for idx in range(1, len(times)):
-        t_prev, el_prev = float(times[idx - 1]), elevations[idx - 1]
-        t_curr, el_curr = float(times[idx]), elevations[idx]
+        t_prev, m_prev = float(times[idx - 1]), margins[idx - 1]
+        t_curr, m_curr = float(times[idx]), margins[idx]
+        el_curr = elevations[idx]
 
-        if not in_view and el_curr > min_elevation_deg:
-            current_rise = _refine_crossing(t_prev, t_curr, el_prev, min_elevation_deg, eval_el)
+        if not in_view and m_curr > 0.0:
+            current_rise = _refine_crossing(t_prev, t_curr, m_prev, 0.0, eval_margin)
             current_max_el = el_curr
             in_view = True
-        elif in_view and el_curr <= min_elevation_deg:
-            set_et = _refine_crossing(t_prev, t_curr, el_prev, min_elevation_deg, eval_el)
+        elif in_view and m_curr <= 0.0:
+            set_et = _refine_crossing(t_prev, t_curr, m_prev, 0.0, eval_margin)
             raw_windows.append((current_rise, set_et, current_max_el, clipped_start, False))
             clipped_start = False
             in_view = False
