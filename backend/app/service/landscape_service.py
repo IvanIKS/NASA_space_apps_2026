@@ -3,7 +3,10 @@ import os
 import struct
 from pathlib import Path
 
-from dotenv import load_dotenv, dotenv_values
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
 import numpy as np
 from numpy import sqrt
 import shutil
@@ -22,6 +25,14 @@ _MOON_RADIUS_M = _MOON_RADIUS_KM * 1000.0
 # Degrees of arc per metre on the surface, used to convert the GeoTIFF's
 # equirectangular (metre) projection coordinates into lat/lon.
 _DEG_PER_M = 180.0 / (math.pi * _MOON_RADIUS_M)
+
+# GLD100 8-bit browse DEM linear scaling range (metres relative to 1737.4 km).
+_GLD100_MIN_ELEV_M = -9150.0
+_GLD100_MAX_ELEV_M = 10760.0
+_GLD100_SCALE_M = (_GLD100_MAX_ELEV_M - _GLD100_MIN_ELEV_M) / 255.0
+
+# Default Sun angular radius at 1 AU in degrees (~0.2665 deg).
+_DEFAULT_SUN_ANGULAR_RADIUS_DEG = math.degrees(math.asin(696340.0 / 149597870.7))
 
 # The GLD100 mosaic tiles live next to the backend package, in backend/moon-map.
 _MAP_DIR = Path(__file__).resolve().parent.parent.parent / "moon-map"
@@ -302,17 +313,16 @@ def load_map(map_dir=None) -> "list[_Tile]":
     paths = sorted(base.glob(_TILE_GLOB))
     if not paths:
         dotenv_path = Path(__file__).resolve().parent.parent / ".env"
-        load_dotenv(dotenv_path=dotenv_path)
-
-        #This is dumb, but bool("False") is True in Python.
-        _SHOULD_DOWNLOAD_MAP = os.getenv(_dotenv_map_var_name)
-        if _SHOULD_DOWNLOAD_MAP is not None and _SHOULD_DOWNLOAD_MAP == "True":
+        if load_dotenv is not None:
+            load_dotenv(dotenv_path=dotenv_path)
+        _SHOULD_DOWNLOAD_MAP = os.getenv(_dotenv_map_var_name, "").strip().lower() in ("1", "true", "yes")
+        if _SHOULD_DOWNLOAD_MAP:
             _download_map_from_nasa_site()
             paths = sorted(base.glob(_TILE_GLOB))
         else:
             print("No map found. Please download it from NASA site to have it available in the backend."
                   " For now all functionality related to landscape will be disabled.")
-            return
+            return []
 
     for path in paths:
         tile = _make_tile(_read_tiff_metadata(path))
@@ -402,11 +412,19 @@ def _find_tile(lat: float, lon: float):
     raise ValueError(f"No tile covers lat={lat}, lon={lon}")
 
 
-def get_elevation(lat: float, lon: float) -> int:
-    """Return the raw 8-bit DEM value at a lat/lon via the lazy memmap.
+def is_map_loaded() -> bool:
+    """Return True if GLD100 landscape tiles are loaded."""
+    return _MAP_LOADED
 
-    NOTE: this is the product's byte-scaled value, not metres. Converting to a
-    true height needs the dataset's byte->metre scale/offset (TODO)."""
+
+def raw_to_elevation_m(raw: "int | np.ndarray") -> "float | np.ndarray":
+    """Convert raw 8-bit GLD100 browse DEM values (0..255) to metres relative
+    to the lunar reference radius (1737.4 km)."""
+    return raw * _GLD100_SCALE_M + _GLD100_MIN_ELEV_M
+
+
+def get_elevation(lat: float, lon: float) -> int:
+    """Return the raw 8-bit DEM value at a lat/lon via the lazy memmap."""
     if not _MAP_LOADED:
         raise ValueError("Moon map is not present in folder.")
 
@@ -414,6 +432,57 @@ def get_elevation(lat: float, lon: float) -> int:
     tile = _find_tile(lat, lon)
     row, col = tile.pixel_index(lat, lon)
     return int(tile.array[row, col])
+
+
+def get_elevation_m(lat: float, lon: float) -> float:
+    """Return terrain elevation in metres relative to lunar reference radius.
+    Returns 0.0 if the point is outside the loaded mosaic's latitude coverage."""
+    if not _MAP_LOADED:
+        return 0.0
+    lon_norm = _normalize_lon(lon)
+    for tile in _LANDSCAPE_MAP:
+        if tile.contains(lat, lon_norm):
+            row, col = tile.pixel_index(lat, lon_norm)
+            return float(raw_to_elevation_m(int(tile.array[row, col])))
+    return 0.0
+
+
+def get_elevation_km(lat: float, lon: float) -> float:
+    """Return terrain elevation in km relative to lunar reference radius."""
+    return get_elevation_m(lat, lon) / 1000.0
+
+
+def sample_elevations_km(lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
+    """Vectorized elevation lookup (in km) for arrays of latitudes/longitudes.
+    Points outside the loaded tiles' coverage default to 0.0 km."""
+    lats_arr = np.asarray(lats, dtype=np.float64)
+    lons_norm = np.asarray(lons, dtype=np.float64) % 360.0
+    out_km = np.zeros_like(lats_arr, dtype=np.float64)
+    if not _MAP_LOADED:
+        return out_km
+
+    for tile in _LANDSCAPE_MAP:
+        mask = (
+            (lats_arr >= tile.lat_min)
+            & (lats_arr <= tile.lat_max)
+            & (lons_norm >= tile.lon_min)
+            & (lons_norm <= tile.lon_max)
+        )
+        if not np.any(mask):
+            continue
+        cols = np.clip(
+            ((lons_norm[mask] - tile.lon_min) / tile.deg_per_px_x).astype(np.intp),
+            0,
+            tile.width - 1,
+        )
+        rows = np.clip(
+            ((tile.lat_max - lats_arr[mask]) / tile.deg_per_px_y).astype(np.intp),
+            0,
+            tile.height - 1,
+        )
+        raw_vals = tile.array[rows, cols].astype(np.float64)
+        out_km[mask] = raw_to_elevation_m(raw_vals) / 1000.0
+    return out_km
 
 
 def has_map_data(lat: float, lon: float) -> bool:
@@ -432,37 +501,174 @@ def has_map_data(lat: float, lon: float) -> bool:
 base on the altitude of observer and possible height of the landscape objects that could rise from
 beyond the horizon."""
 def _get_max_distance_to_obstructing_landscape_point(alt_km: float) -> float:
-    horizon_distance = sqrt(alt_km * ((2 * _MOON_RADIUS_KM) + alt_km))
-    # A distance beyond the horizon where high mountains and crater walls could still be visible because of how high they are.
-    # TODO : Calculate it somehow.
-    distance_beyond_horizon = 0
+    """Maximum surface arc distance (km) from which a lunar peak could still
+    rise above the observer's geometric horizon."""
+    h_min_km = _GLD100_MIN_ELEV_M / 1000.0
+    h_max_km = _GLD100_MAX_ELEV_M / 1000.0
+    dh_obs = max(0.0, alt_km - h_min_km)
+    dh_peak = max(0.0, h_max_km - h_min_km)
+    horizon_distance = float(sqrt(dh_obs * (2.0 * _MOON_RADIUS_KM + alt_km + h_min_km)))
+    distance_beyond_horizon = float(sqrt(dh_peak * (2.0 * _MOON_RADIUS_KM + h_max_km + h_min_km)))
     return horizon_distance + distance_beyond_horizon
 
 
-"""
-When a sun is above the horizon, the sun's obstruction coefficient is 1.
-When a sun is below the horizon, the sun's obstruction coefficient is 0.
-Horizon could be different depending on landscape: there could be mountains,
-crater walls, etc.
-If sun is setting just above the horizon we try to calculate which part of it is obstructed.
-EARTH OBSTRUCTION COEFFICIENT IS NOT IMPLEMENTED YET AND IS OUT OF SCOPE OF THIS COMMIT.
-"""
-def get_obstruction_coefficient(lat, lon, azimuth, elevation, observer_alt_km=0) -> float:
-    if not _MAP_LOADED:
-        return 1
+def _ray_distances_km(max_dist_km: float) -> np.ndarray:
+    """Adaptive radial sample distances (km) along a ray: 100 m near the
+    observer, coarsening at larger distances."""
+    parts = [np.arange(0.1, min(10.0, max_dist_km) + 1e-9, 0.1)]
+    if max_dist_km > 10.0:
+        parts.append(np.arange(10.5, min(50.0, max_dist_km) + 1e-9, 0.5))
+    if max_dist_km > 50.0:
+        parts.append(np.arange(52.0, max_dist_km + 1e-9, 2.0))
+    return np.concatenate(parts)
 
-    distance_on_map = _get_max_distance_to_obstructing_landscape_point(observer_alt_km)
-    # 1. Get all points on map that are within distance_on_map from observer in the direction of sun azimuth.
-    # 2. Get all points that have higher alt than observer_alt_km.
-    # 3. For each point higher alt than observer_alt_km:
-    #    3.1. point.alt is cathetus, distance to point is cathetus.
-    #    Sun elevation angle where sun stops being visible is atan(point.alt/distance to point) - sun size on the sky. Denote it as min_visibility_angle.
-    #    angles_above_min = min_visibility_angle - sun_size_on_the_sky.
-    #    max_obs_coefficient = angles_above_min / (sun_size) or previous max_obs_coefficient if it's larger.
-    #    If coefficient is < 0, set in to 0. If coefficient is > 1, set it to 1.
-    #    If at any point min_coefficient is < 0, return 0.
-    #4. return coefficient -- we should return the maximum coefficient.
-    return 1
+
+def _forward_geodesic(
+    lat_deg: float,
+    lon_deg: float,
+    azimuth_deg: "float | np.ndarray",
+    distances_km: np.ndarray,
+) -> "tuple[np.ndarray, np.ndarray, np.ndarray]":
+    """Compute (lats_deg, lons_deg, psi_rad) along great-circle rays from
+    (lat_deg, lon_deg) in direction(s) azimuth_deg at arc distances_km."""
+    lat0 = math.radians(lat_deg)
+    lon0 = math.radians(lon_deg)
+    az = np.radians(azimuth_deg)
+    psi = distances_km / _MOON_RADIUS_KM
+
+    sin_lat0 = math.sin(lat0)
+    cos_lat0 = math.cos(lat0)
+    sin_psi = np.sin(psi)
+    cos_psi = np.cos(psi)
+
+    sin_lat_p = np.clip(sin_lat0 * cos_psi + cos_lat0 * sin_psi * np.cos(az), -1.0, 1.0)
+    lat_p = np.arcsin(sin_lat_p)
+    lon_p = lon0 + np.arctan2(
+        np.sin(az) * sin_psi * cos_lat0,
+        cos_psi - sin_lat0 * sin_lat_p,
+    )
+    return np.degrees(lat_p), np.degrees(lon_p), psi
+
+
+def _horizon_angles_along_rays(
+    lat_deg: float,
+    lon_deg: float,
+    azimuths_deg: np.ndarray,
+    observer_alt_km: float = 0.0,
+) -> np.ndarray:
+    """Return the maximum terrain elevation angle (deg) along each azimuth."""
+    terrain_h0_km = get_elevation_km(lat_deg, lon_deg)
+    h0_km = terrain_h0_km + observer_alt_km
+    r0 = _MOON_RADIUS_KM + h0_km
+
+    max_dist_km = _get_max_distance_to_obstructing_landscape_point(h0_km)
+    dists_km = _ray_distances_km(max_dist_km)  # (R,)
+
+    az_col = np.asarray(azimuths_deg, dtype=np.float64)[:, None]  # (A, 1)
+    dists_row = dists_km[None, :]  # (1, R)
+
+    lats_p, lons_p, psi = _forward_geodesic(lat_deg, lon_deg, az_col, dists_row)
+    hp_km = sample_elevations_km(lats_p, lons_p)  # (A, R)
+    rp = _MOON_RADIUS_KM + hp_km
+
+    du = rp * np.cos(psi) - r0
+    ds = rp * np.sin(psi)
+    angles_deg = np.degrees(np.arctan2(du, ds))
+    return np.max(angles_deg, axis=1)
+
+
+def get_horizon_elevation_deg(
+    lat: float,
+    lon: float,
+    azimuth: float,
+    observer_alt_km: float = 0.0,
+) -> float:
+    """Return the terrain horizon elevation angle (degrees) at (lat, lon)
+    along the given azimuth (degrees clockwise from North)."""
+    if not _MAP_LOADED:
+        return 0.0
+    angles = _horizon_angles_along_rays(lat, lon, np.array([azimuth]), observer_alt_km)
+    return float(angles[0])
+
+
+def get_horizon_profile(
+    lat: float,
+    lon: float,
+    observer_alt_km: float = 0.0,
+    num_azimuths: int = 360,
+) -> "np.ndarray | None":
+    """Precompute a 360-degree horizon elevation profile (degrees) around
+    (lat, lon) for fast time-series insolation queries. Returns None if the
+    map is not loaded."""
+    if not _MAP_LOADED:
+        return None
+    azimuths = np.linspace(0.0, 360.0, num_azimuths, endpoint=False)
+    return _horizon_angles_along_rays(lat, lon, azimuths, observer_alt_km)
+
+
+def obstruction_from_horizon(
+    horizon_elev_deg: float,
+    sun_elevation_deg: float,
+    sun_angular_radius_deg: float = _DEFAULT_SUN_ANGULAR_RADIUS_DEG,
+) -> float:
+    """Compute the visible fraction [0, 1] of the solar disk given the terrain
+    horizon elevation angle and Sun center elevation angle (both in degrees)."""
+    if sun_elevation_deg - sun_angular_radius_deg >= horizon_elev_deg:
+        return 1.0
+    if sun_elevation_deg + sun_angular_radius_deg <= horizon_elev_deg:
+        return 0.0
+    t = float(np.clip((sun_elevation_deg - horizon_elev_deg) / sun_angular_radius_deg, -1.0, 1.0))
+    return float((math.acos(-t) + t * math.sqrt(max(0.0, 1.0 - t * t))) / math.pi)
+
+
+def get_obstruction_coefficient(
+    lat: float,
+    lon: float,
+    azimuth: float,
+    elevation: float,
+    observer_alt_km: float = 0.0,
+    sun_angular_radius_deg: float = _DEFAULT_SUN_ANGULAR_RADIUS_DEG,
+) -> float:
+    """Return the fraction [0, 1] of the solar disk not obstructed by terrain
+    along `azimuth` when the Sun is at `elevation` degrees."""
+    if not _MAP_LOADED:
+        return 1.0
+
+    horizon_elev_deg = get_horizon_elevation_deg(lat, lon, azimuth, observer_alt_km)
+    return obstruction_from_horizon(horizon_elev_deg, elevation, sun_angular_radius_deg)
+
+
+def get_surface_normal_enu(lat: float, lon: float) -> np.ndarray:
+    """Compute the local terrain unit normal vector [east, north, up] at
+    (lat, lon) using central finite differences on the DEM. Falls back to
+    [0, 0, 1] if the map is not loaded or the point is outside tile coverage."""
+    if not _MAP_LOADED:
+        return np.array([0.0, 0.0, 1.0], dtype=np.float64)
+
+    lon_norm = _normalize_lon(lon)
+    tile = None
+    for t in _LANDSCAPE_MAP:
+        if t.contains(lat, lon_norm):
+            tile = t
+            break
+    if tile is None:
+        return np.array([0.0, 0.0, 1.0], dtype=np.float64)
+
+    dlat = tile.deg_per_px_y
+    dlon = tile.deg_per_px_x
+
+    pts_lat = np.array([lat, lat, lat + dlat, lat - dlat], dtype=np.float64)
+    pts_lon = np.array([lon + dlon, lon - dlon, lon, lon], dtype=np.float64)
+    h_e, h_w, h_n, h_s = sample_elevations_km(pts_lat, pts_lon)
+
+    cos_lat = max(math.cos(math.radians(lat)), 1e-4)
+    dx_km = 2.0 * _MOON_RADIUS_KM * cos_lat * math.radians(dlon)
+    dy_km = 2.0 * _MOON_RADIUS_KM * math.radians(dlat)
+
+    dz_dx = (h_e - h_w) / dx_km
+    dz_dy = (h_n - h_s) / dy_km
+    normal = np.array([-dz_dx, -dz_dy, 1.0], dtype=np.float64)
+    return normal / np.linalg.norm(normal)
 
 
 """
