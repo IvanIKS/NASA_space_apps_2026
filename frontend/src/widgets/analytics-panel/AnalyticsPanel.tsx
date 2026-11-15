@@ -133,7 +133,7 @@ function PointView({ query, utc, days, onDays, visible, onVisible }: PointViewPr
       data
         ? [
             {
-              name: "Illumination",
+              name: "Insolation",
               color: ILLUMINATION_COLOR,
               data: data.insolation.insolation_graph,
               earth: data.earth_visibility.elevation_graph,
@@ -174,7 +174,7 @@ function PointView({ query, utc, days, onDays, visible, onVisible }: PointViewPr
         </tbody>
       </table>
 
-      <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Illumination</h3>
+      <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Insolation</h3>
       <p className="m-0 text-2xl tabular-nums">
         {data.insolation.insolation_watts.toFixed(1)}{" "}
         <span className="text-[13px] text-muted-foreground">W/m² now</span>

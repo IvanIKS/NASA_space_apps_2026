@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Globe, { type GlobeMethods } from "react-globe.gl";
 import { pointLabel } from "@/features/select-point";
+import type { HeatPoint } from "@/entities/landscape";
 import { POINT_COLORS, TEXTURES } from "@/shared/config";
 import type { LatLon } from "@/shared/lib";
 
@@ -9,6 +10,8 @@ interface Props {
   active: number;
   onSelect: (point: LatLon) => void;
   onActivate: (index: number) => void;
+  imageUrl?: string | null;
+  heatPoints?: HeatPoint[] | null;
 }
 
 interface Pin extends LatLon {
@@ -22,6 +25,10 @@ const LANDMARKS = [
   { name: "Apollo 11", lat: 0.674, lon: 23.473 },
   { name: "Shackleton", lat: -89.67, lon: 129.78 },
 ];
+
+const HEAT_TOP_ALTITUDE = 0.3;
+const HEAT_BANDWIDTH_DEG = 3;
+const HEAT_MARKER_ALTITUDE = 0.12;
 
 const hexToRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ");
 
@@ -47,7 +54,7 @@ function createPin(pin: Pin, onActivate: (index: number) => void): HTMLElement {
   return el;
 }
 
-export function MoonGlobe({ points, active, onSelect, onActivate }: Props) {
+export function MoonGlobe({ points, active, onSelect, onActivate, imageUrl, heatPoints }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeMethods>();
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
@@ -80,6 +87,9 @@ export function MoonGlobe({ points, active, onSelect, onActivate }: Props) {
     globe.pointOfView({ lat: point.lat, lng: point.lon, altitude: globe.pointOfView().altitude }, ms);
   }, [point, ready]);
 
+  const heatmaps = useMemo(() => (heatPoints ? [heatPoints] : []), [heatPoints]);
+  const raised = Boolean(heatPoints);
+
   return (
     <div ref={wrapRef} className="absolute inset-0">
       {size && (
@@ -89,7 +99,7 @@ export function MoonGlobe({ points, active, onSelect, onActivate }: Props) {
           height={size.height}
           animateIn={false}
           backgroundColor="#000000"
-          globeImageUrl={TEXTURES.color}
+          globeImageUrl={imageUrl ?? TEXTURES.color}
           bumpImageUrl={TEXTURES.elevation}
           showAtmosphere={false}
           showGraticules
@@ -98,7 +108,7 @@ export function MoonGlobe({ points, active, onSelect, onActivate }: Props) {
           htmlElementsData={pins}
           htmlLat="lat"
           htmlLng="lon"
-          htmlAltitude={0.005}
+          htmlAltitude={raised ? HEAT_MARKER_ALTITUDE : 0.005}
           htmlElement={pinElement}
           htmlElementVisibilityModifier={(el, visible) => { el.style.opacity = visible ? "1" : "0"; }}
           htmlTransitionDuration={0}
@@ -106,6 +116,7 @@ export function MoonGlobe({ points, active, onSelect, onActivate }: Props) {
           ringLat="lat"
           ringLng="lon"
           ringColor={() => (t: number) => `rgba(${hexToRgb(ringColor)}, ${0.9 * (1 - t)})`}
+          ringAltitude={raised ? HEAT_MARKER_ALTITUDE : 0.0015}
           ringMaxRadius={5}
           ringPropagationSpeed={2.5}
           ringRepeatPeriod={1000}
@@ -113,10 +124,21 @@ export function MoonGlobe({ points, active, onSelect, onActivate }: Props) {
           labelLat="lat"
           labelLng="lon"
           labelText="name"
+          labelAltitude={raised ? HEAT_MARKER_ALTITUDE : 0.01}
           labelSize={1.2}
           labelDotRadius={0.3}
           labelColor={() => "rgba(255, 255, 255, 0.75)"}
           labelResolution={2}
+          heatmapsData={heatmaps}
+          heatmapPoints={(d) => d as HeatPoint[]}
+          heatmapPointLat={(p) => (p as HeatPoint)[0]}
+          heatmapPointLng={(p) => (p as HeatPoint)[1]}
+          heatmapPointWeight={(p) => (p as HeatPoint)[2]}
+          heatmapBandwidth={HEAT_BANDWIDTH_DEG}
+          heatmapColorSaturation={1.6}
+          heatmapBaseAltitude={0.005}
+          heatmapTopAltitude={HEAT_TOP_ALTITUDE}
+          heatmapsTransitionDuration={1200}
         />
       )}
     </div>

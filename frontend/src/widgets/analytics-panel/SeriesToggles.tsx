@@ -16,7 +16,7 @@ export function SeriesToggles({ visible, onChange }: Props) {
           disabled={visible.insolation && !visible.earth}
           onCheckedChange={(v) => onChange({ ...visible, insolation: v === true })}
         />
-        <Label htmlFor="show-insolation" className="text-xs">Illumination</Label>
+        <Label htmlFor="show-insolation" className="text-xs">Insolation</Label>
       </div>
       <div className="flex items-center gap-1.5">
         <Checkbox

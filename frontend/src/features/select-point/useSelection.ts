@@ -12,7 +12,10 @@ export interface Selection {
   view: ViewMode;
   adding: boolean;
   revision: number;
+  relief: TerrainMode;
 }
+
+export type TerrainMode = "off" | "shaded" | "3d";
 
 export interface SelectionActions {
   place(point: LatLon): void;
@@ -23,6 +26,8 @@ export interface SelectionActions {
   cancelAdd(): void;
   toggleView(): void;
   setDays(days: number): void;
+  toggleRelief(): void;
+  toggle3d(): void;
 }
 
 export const pointLabel = (index: number) => String.fromCharCode(65 + index);
@@ -60,6 +65,7 @@ function readUrl(): Selection {
     view: points.length > 0 && params.get("view") === "surface" ? "surface" : "globe",
     adding: false,
     revision: 0,
+    relief: params.get("relief") === "3d" ? "3d" : params.get("relief") === "1" ? "shaded" : "off",
   };
 }
 
@@ -72,6 +78,8 @@ function writeUrl(s: Selection) {
   params.set("utc", s.utc);
   if (s.days !== DEFAULT_GRAPH_DAYS) params.set("days", String(s.days));
   if (s.view !== "globe") params.set("view", s.view);
+  if (s.relief === "shaded") params.set("relief", "1");
+  if (s.relief === "3d") params.set("relief", "3d");
   window.history.replaceState(null, "", `?${params}`);
 }
 
@@ -104,6 +112,8 @@ export function useSelection(): [Selection, SelectionActions] {
       startAdd: () => setSelection((s) => (s.points.length < MAX_POINTS ? { ...s, adding: true, view: "globe" } : s)),
       cancelAdd: () => setSelection((s) => ({ ...s, adding: false })),
       setDays: (days) => setSelection((s) => ({ ...s, days: clampDays(days) })),
+      toggleRelief: () => setSelection((s) => ({ ...s, relief: s.relief === "shaded" ? "off" : "shaded" })),
+      toggle3d: () => setSelection((s) => ({ ...s, relief: s.relief === "3d" ? "off" : "3d" })),
       toggleView: () =>
         setSelection((s) => ({ ...s, view: s.view === "surface" ? "globe" : "surface", adding: false })),
     }),

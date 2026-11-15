@@ -1,22 +1,25 @@
 import type { ComponentProps } from "react";
-import { Globe, PersonStanding } from "lucide-react";
+import { Box, Globe, Mountain, PersonStanding } from "lucide-react";
 import { cn } from "@/shared/lib";
 import { Button } from "./button";
 
-const ICONS = { person: PersonStanding, globe: Globe } as const;
+const ICONS = { person: PersonStanding, globe: Globe, mountain: Mountain, box: Box } as const;
 
 interface Props extends ComponentProps<typeof Button> {
   icon: keyof typeof ICONS;
+  pressed?: boolean;
 }
 
-export function ViewToggleButton({ icon, className, children, ...rest }: Props) {
+export function ViewToggleButton({ icon, pressed, className, children, ...rest }: Props) {
   const Icon = ICONS[icon];
   return (
     <Button
       variant="outline"
+      aria-pressed={pressed}
       className={cn(
-        "absolute right-4 bottom-4 rounded-full bg-card/90 pr-3.5 pl-2.5 shadow-lg shadow-black/50",
+        "rounded-full bg-card/90 pr-3.5 pl-2.5 shadow-lg shadow-black/50",
         "hover:border-primary hover:text-primary disabled:opacity-45",
+        pressed && "border-primary text-primary",
         className
       )}
       {...rest}
