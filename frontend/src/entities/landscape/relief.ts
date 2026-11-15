@@ -73,9 +73,7 @@ export function buildHeatPoints(source: LandscapeGrid): HeatPoint[] {
     for (let x = HEAT_STEP / 2; x < grid.width; x += HEAT_STEP) {
       const v = grid.data[y][x];
       if (v <= level) continue;
-      const lat = grid.lat_start - (y + 0.5) * latStep;
-      const height = (v - level) / (255 - level);
-      out.push([lat, grid.lon_start + (x + 0.5) * lonStep, height * height * Math.cos((lat * Math.PI) / 180)]);
+      out.push([grid.lat_start - (y + 0.5) * latStep, grid.lon_start + (x + 0.5) * lonStep, (v - level) / (255 - level)]);
     }
   }
   return out;

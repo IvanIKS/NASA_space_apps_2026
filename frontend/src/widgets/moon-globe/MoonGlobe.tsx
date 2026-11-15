@@ -27,7 +27,7 @@ const LANDMARKS = [
 ];
 
 const HEAT_TOP_ALTITUDE = 0.3;
-const HEAT_BANDWIDTH_DEG = 2.5;
+const HEAT_BANDWIDTH_DEG = 3;
 const HEAT_MARKER_ALTITUDE = 0.12;
 
 const hexToRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ");
@@ -135,7 +135,7 @@ export function MoonGlobe({ points, active, onSelect, onActivate, imageUrl, heat
           heatmapPointLng={(p) => (p as HeatPoint)[1]}
           heatmapPointWeight={(p) => (p as HeatPoint)[2]}
           heatmapBandwidth={HEAT_BANDWIDTH_DEG}
-          heatmapColorSaturation={1.0}
+          heatmapColorSaturation={1.6}
           heatmapBaseAltitude={0.005}
           heatmapTopAltitude={HEAT_TOP_ALTITUDE}
           heatmapsTransitionDuration={1200}
