@@ -1,20 +1,23 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from ..schemas import (
     BodyResult,
     EarthVisibilityRequest,
     EarthVisibilityResponse,
-    InsolationRequest,
     InsolationResult,
     SurfaceQueryRequest,
     SurfaceQueryResponse,
 )
-from service.spice_service import (
+from app.service.spice_service import (
     calculate_insolation_series,
     earth_visibility_windows,
     query_surface,
 )
+from app.service.landscape_service import get_landscape_map, has_map_data
 
 router = APIRouter(prefix="/positions", tags=["positions"])
+
+_NO_LANDSCAPE_DATA_WARNING = ("This doesn't account for landscape since no map "
+                              "data was available for this region")
 
 
 @router.post("/surface", response_model=SurfaceQueryResponse)
@@ -23,6 +26,10 @@ async def surface_query(req: SurfaceQueryRequest):
         raw = query_surface(req.utc, req.lat_deg, req.lon_deg, req.alt_km)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    warnings = []
+    if not has_map_data(req.lat_deg, req.lon_deg):
+        warnings.append(_NO_LANDSCAPE_DATA_WARNING)
 
     return SurfaceQueryResponse(
         earth=BodyResult(
@@ -42,6 +49,7 @@ async def surface_query(req: SurfaceQueryRequest):
             insolation_graph=raw["insolation_graph"]
         ),
         earth_visibility=EarthVisibilityResponse(**raw["earth_visibility"]),
+        warnings=warnings,
     )
 
 
@@ -63,9 +71,20 @@ async def earth_visibility(req: EarthVisibilityRequest):
 
 
 @router.get("/insolation")
-async def insolation(req: InsolationRequest):
+async def insolation(
+    utc_from: str = Query(..., example="2026-10-18T05:15:00"),
+    utc_to: str = Query(..., example="2026-10-18T05:15:00"),
+    lat_deg: float = Query(..., ge=-90, le=90),
+    lon_deg: float = Query(..., ge=-180, le=180),
+    step_s: float = Query(default=3600.0, ge=0),
+):
     try:
-        series = calculate_insolation_series(req.utc_from, req.utc_to, req.lat_deg, req.lon_deg, req.step_s)
+        series = calculate_insolation_series(utc_from, utc_to, lat_deg, lon_deg, step_s)
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
     return series
 
+@router.get("/landscape")
+async def get_landscape(lat_start, lon_start, lat_end, lon_end):
+    try:
+        return get_landscape_map(lat_start, lon_start, lat_end, lon_end)
+    except Exception as e: raise HTTPException(status_code=400, detail=str(e))

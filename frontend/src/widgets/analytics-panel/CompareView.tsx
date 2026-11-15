@@ -12,10 +12,13 @@ import { pointLabel } from "@/features/select-point";
 import { POINT_COLORS } from "@/shared/config";
 import { cn, formatDeg as deg } from "@/shared/lib";
 import { EarthElevationChart, type EarthElevationSeries } from "./EarthElevationChart";
+import { GraphWindow } from "./GraphWindow";
 
 interface Props {
   queries: SurfaceQueryState[];
   utc: string;
+  days: number;
+  onDays: (days: number) => void;
 }
 
 interface Row {
@@ -33,7 +36,7 @@ interface Snapshot {
   utc: string;
 }
 
-export function CompareView({ queries, utc }: Props) {
+export function CompareView({ queries, utc, days, onDays }: Props) {
   const settled = queries.every((q) => !q.loading);
   const [snapshot, setSnapshot] = useState<Snapshot>({ queries, utc });
   useEffect(() => {
@@ -99,7 +102,7 @@ export function CompareView({ queries, utc }: Props) {
             <th className="py-1 text-right font-medium" title="Earth elevation">Earth</th>
             <th className="py-1 text-right font-medium" title="Share of ±1 lunar day with direct Earth line-of-sight">LOS</th>
             <th className="py-1 text-right font-medium" title="Illumination now">W/m²</th>
-            <th className="py-1 text-right font-medium" title="Share of the lunar day in sunlight">Lit</th>
+            <th className="py-1 text-right font-medium" title="Share of the graph window in sunlight">Lit</th>
             <th className="py-1 text-right font-medium" title="Next sunrise ↑ or sunset ↓">Next</th>
           </tr>
         </thead>
@@ -131,15 +134,18 @@ export function CompareView({ queries, utc }: Props) {
         </tbody>
       </table>
       <p className="mt-1.5 text-[11px] text-muted-foreground">
-        Sun and Earth elevation at the selected time; Lit is the share of ±1 lunar day with sunlight; Next is the time
+        Sun and Earth elevation at the selected time; Lit is the share of the graph window with sunlight; Next is the time
         to the next sunrise ↑ or sunset ↓. Best values in bold.
       </p>
 
       {series.length > 0 && (
         <>
-          <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Illumination</h3>
+          <div className="mt-5 mb-1 flex items-center justify-between">
+            <h3 className="m-0 font-medium text-muted-foreground">Illumination</h3>
+            <GraphWindow days={days} onChange={onDays} />
+          </div>
           <InsolationChart series={series} currentUtc={shown.utc} />
-          <p className="mt-1 text-xs text-muted-foreground">±1 lunar day around the selected time, hourly samples.</p>
+          <p className="mt-1 text-xs text-muted-foreground">{days} days around the selected time, hourly samples.</p>
         </>
       )}
 

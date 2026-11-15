@@ -1,4 +1,4 @@
-export { querySurface } from "./api";
+export { queryInsolation, queryObservation, querySurface } from "./api";
 export type {
   BodyResult,
   EarthElevationPoint,
