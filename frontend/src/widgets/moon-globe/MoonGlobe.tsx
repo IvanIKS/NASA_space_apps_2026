@@ -9,6 +9,7 @@ interface Props {
   active: number;
   onSelect: (point: LatLon) => void;
   onActivate: (index: number) => void;
+  imageUrl?: string | null;
 }
 
 interface Pin extends LatLon {
@@ -47,7 +48,7 @@ function createPin(pin: Pin, onActivate: (index: number) => void): HTMLElement {
   return el;
 }
 
-export function MoonGlobe({ points, active, onSelect, onActivate }: Props) {
+export function MoonGlobe({ points, active, onSelect, onActivate, imageUrl }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeMethods>();
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
@@ -89,7 +90,7 @@ export function MoonGlobe({ points, active, onSelect, onActivate }: Props) {
           height={size.height}
           animateIn={false}
           backgroundColor="#000000"
-          globeImageUrl={TEXTURES.color}
+          globeImageUrl={imageUrl ?? TEXTURES.color}
           bumpImageUrl={TEXTURES.elevation}
           showAtmosphere={false}
           showGraticules

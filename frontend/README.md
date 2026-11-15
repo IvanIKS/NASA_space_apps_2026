@@ -22,7 +22,7 @@ The dev proxy forwards `/api/*` to `http://localhost:8000` (override with `VITE_
 | `pages/` | Screens composed from widgets | `observer` (globe or first-person view on the left, analytics on the right) |
 | `widgets/` | Self-contained blocks of UI | `moon-globe` (pins for every point), `analytics-panel` (point chips, Point / Compare tabs), `sky-view` (`scene/` holds the three.js part) |
 | `features/` | User actions and the state they produce | `select-point` (up to 4 points, the active one, shared time, graph window and view mode, mirrored to the URL as `?pts=lat,lon;lat,lon&active=&utc=&days=`) |
-| `entities/` | Domain data: API calls, types, hooks, data views | `surface-observation` (`/positions/surface`, one cached query per point), `insolation` (chart, sunrise/sunset and lit-share metrics) |
+| `entities/` | Domain data: API calls, types, hooks, data views | `surface-observation` (`/positions/surface`, one cached query per point), `insolation` (chart, sunrise/sunset and lit-share metrics), `landscape` (`/positions/landscape/low-res` grid turned into a hillshaded globe texture) |
 | `shared/` | Reusable code with no domain knowledge | `api` (fetch helper), `ui` (shadcn primitives, view toggle), `lib` (format/time), `config` (textures, point colours) |
 
 Conventions:
