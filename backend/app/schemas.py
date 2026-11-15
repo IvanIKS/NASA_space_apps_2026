@@ -63,3 +63,14 @@ class SurfaceQueryResponse(BaseModel):
     warnings: list[str] = []
 
 
+class LandscapeMapResponse(BaseModel):
+    width: int
+    height: int
+    resolution_km: float
+    lat_start: float
+    lon_start: float
+    lat_end: float
+    lon_end: float
+    data: list[list[int]]
+
+

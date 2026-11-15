@@ -857,11 +857,16 @@ def get_surface_normal_enu(lat: float, lon: float) -> np.ndarray:
     return normal / np.linalg.norm(normal)
 
 
-"""
-Returns a map of landscape points that are within the given area,
-where lat_start, lon_start are the top left corner of the area.
-"""
-def get_landscape_map(lat_start, lon_start, lat_end, lon_end):
+def _assemble_landscape_map(
+    lat_start: float,
+    lon_start: float,
+    lat_end: float,
+    lon_end: float,
+    step_x: int = 1,
+    step_y: int = 1,
+) -> np.ndarray:
+    """Assemble a (rows, cols) elevation grid for the requested bounds,
+    sampling every ``step_x``/``step_y`` native pixels."""
     # Stitches across tile boundaries: the requested box may span the equator
     # (north/south tiles), a 90 deg longitude seam, or wrap across the 0/360
     # antimeridian. Rows beyond the +-60 deg equirectangular bands are
@@ -901,7 +906,7 @@ def get_landscape_map(lat_start, lon_start, lat_end, lon_end):
     lat_hi, lat_lo = max(lat_start, lat_end), min(lat_start, lat_end)
     gr0 = min(max(to_row(lat_hi), 0), global_rows_total - 1)
     gr1 = min(max(to_row(lat_lo), 0), global_rows_total - 1)
-    out_rows = gr1 - gr0 + 1
+    out_rows = (gr1 - gr0) // step_y + 1
 
     # Longitude segments, split so each is monotonic (handles 0/360 wrap).
     span = lon_end - lon_start
@@ -912,15 +917,16 @@ def get_landscape_map(lat_start, lon_start, lat_end, lon_end):
         segments = [(west, 360.0), (0.0, east)] if east < west else [(west, east)]
 
     # Lay the segments out side by side across the output columns.
-    col_plan = []  # (global_col_start, global_col_end_inclusive, dst_col_start)
+    col_plan = []  # (global_col_start, global_col_end_inclusive, dst_col_start, n_cols)
     dst_col = 0
     for west, east in segments:
         gc0 = min(max(to_col(west), 0), global_width - 1)
         gc1 = min(max(to_col(east), 0), global_width - 1)
         if gc1 < gc0:
             continue
-        col_plan.append((gc0, gc1, dst_col))
-        dst_col += gc1 - gc0 + 1
+        n_cols = (gc1 - gc0) // step_x + 1
+        col_plan.append((gc0, gc1, dst_col, n_cols))
+        dst_col += n_cols
     out_cols = dst_col
 
     out = np.full((out_rows, out_cols), nodata, dtype=out_dtype)
@@ -928,16 +934,21 @@ def get_landscape_map(lat_start, lon_start, lat_end, lon_end):
     for tile in tiles:
         tgr0, tgc0 = to_row(tile.lat_max), to_col(tile.lon_min)
         tgr1, tgc1 = tgr0 + tile.height - 1, tgc0 + tile.width - 1
-        rr0, rr1 = max(gr0, tgr0), min(gr1, tgr1)
-        if rr0 > rr1:
+        k_start = max(0, math.ceil((tgr0 - gr0) / step_y))
+        k_end = min(out_rows - 1, (tgr1 - gr0) // step_y)
+        if k_start > k_end:
             continue
-        for gc0, gc1, dcol in col_plan:
-            cc0, cc1 = max(gc0, tgc0), min(gc1, tgc1)
-            if cc0 > cc1:
+        tr0 = (gr0 + k_start * step_y) - tgr0
+        tr1 = (gr0 + k_end * step_y) - tgr0
+        for gc0, gc1, dcol, n_cols in col_plan:
+            m_start = max(0, math.ceil((tgc0 - gc0) / step_x))
+            m_end = min(n_cols - 1, (tgc1 - gc0) // step_x)
+            if m_start > m_end:
                 continue
-            out[rr0 - gr0:rr1 - gr0 + 1,
-                dcol + cc0 - gc0:dcol + cc1 - gc0 + 1] = \
-                tile.array[rr0 - tgr0:rr1 - tgr0 + 1, cc0 - tgc0:cc1 - tgc0 + 1]
+            tc0 = (gc0 + m_start * step_x) - tgc0
+            tc1 = (gc0 + m_end * step_x) - tgc0
+            out[k_start:k_end + 1, dcol + m_start:dcol + m_end + 1] = \
+                tile.array[tr0:tr1 + 1:step_y, tc0:tc1 + 1:step_x]
 
     # Fill rows outside the equirectangular bands from the polar discs by
     # projecting every output pixel's lat/lon into the disc raster (nearest
@@ -946,10 +957,10 @@ def get_landscape_map(lat_start, lon_start, lat_end, lon_end):
     if _POLAR_MAPS and out_rows and out_cols:
         equi_top = max(t.lat_max for t in tiles)
         equi_bot = min(t.lat_min for t in tiles)
-        row_lats = north_top - np.arange(gr0, gr1 + 1) * dppy
+        row_lats = north_top - np.arange(gr0, gr1 + 1, step_y) * dppy
         col_lons = np.empty(out_cols, dtype=np.float64)
-        for gc0, gc1, dcol in col_plan:
-            col_lons[dcol:dcol + gc1 - gc0 + 1] = np.arange(gc0, gc1 + 1) * dppx
+        for gc0, gc1, dcol, n_cols in col_plan:
+            col_lons[dcol:dcol + n_cols] = np.arange(gc0, gc1 + 1, step_x) * dppx
 
         for ptile in _POLAR_MAPS:
             if ptile.hemisphere > 0:
@@ -977,3 +988,35 @@ def get_landscape_map(lat_start, lon_start, lat_end, lon_end):
                     & (sub == nodata))
             sub[fill] = ptile.array[rr[fill], cc[fill]]
     return out
+
+
+"""
+Returns a map of landscape points that are within the given area,
+where lat_start, lon_start are the top left corner of the area.
+"""
+def get_landscape_map(lat_start, lon_start, lat_end, lon_end):
+    return _assemble_landscape_map(lat_start, lon_start, lat_end, lon_end)
+
+
+def get_landscape_map_low_res(
+    lat_start: float = 90.0,
+    lon_start: float = -180.0,
+    lat_end: float = -90.0,
+    lon_end: float = 180.0,
+    resolution_km: float = 10.0,
+) -> np.ndarray:
+    """Return a downsampled landscape map at approximately ``resolution_km`` x ``resolution_km``
+    per pixel (defaults to 10 x 10 km)."""
+    if resolution_km <= 0:
+        raise ValueError("resolution_km must be positive")
+    if not _MAP_LOADED or not _LANDSCAPE_MAP:
+        raise ValueError("Moon map is not present in folder.")
+
+    tile = _LANDSCAPE_MAP[0]
+    step_deg = (resolution_km * 1000.0) * _DEG_PER_M
+    step_x = max(1, int(round(step_deg / tile.deg_per_px_x)))
+    step_y = max(1, int(round(step_deg / tile.deg_per_px_y)))
+    return _assemble_landscape_map(
+        lat_start, lon_start, lat_end, lon_end,
+        step_x=step_x, step_y=step_y,
+    )
