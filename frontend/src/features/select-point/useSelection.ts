@@ -112,8 +112,8 @@ export function useSelection(): [Selection, SelectionActions] {
       startAdd: () => setSelection((s) => (s.points.length < MAX_POINTS ? { ...s, adding: true, view: "globe" } : s)),
       cancelAdd: () => setSelection((s) => ({ ...s, adding: false })),
       setDays: (days) => setSelection((s) => ({ ...s, days: clampDays(days) })),
-      toggleRelief: () => setSelection((s) => ({ ...s, relief: s.relief === "off" ? "shaded" : "off" })),
-      toggle3d: () => setSelection((s) => ({ ...s, relief: s.relief === "3d" ? "shaded" : "3d" })),
+      toggleRelief: () => setSelection((s) => ({ ...s, relief: s.relief === "shaded" ? "off" : "shaded" })),
+      toggle3d: () => setSelection((s) => ({ ...s, relief: s.relief === "3d" ? "off" : "3d" })),
       toggleView: () =>
         setSelection((s) => ({ ...s, view: s.view === "surface" ? "globe" : "surface", adding: false })),
     }),

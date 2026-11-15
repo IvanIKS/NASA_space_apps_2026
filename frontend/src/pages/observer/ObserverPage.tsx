@@ -66,10 +66,10 @@ export function ObserverPage({ selection, queries, actions, relief }: Props) {
           {!surface && (
             <ViewToggleButton
               icon="mountain"
-              pressed={selection.relief !== "off"}
+              pressed={selection.relief === "shaded"}
               onClick={actions.toggleRelief}
               disabled={relief.loading}
-              title={selection.relief !== "off" ? "Back to the colour map" : "Shade the globe with LRO terrain"}
+              title={selection.relief === "shaded" ? "Back to the colour map" : "Shade the globe with LRO terrain"}
             >
               {relief.loading ? "Loading relief…" : "Relief"}
             </ViewToggleButton>
@@ -80,7 +80,7 @@ export function ObserverPage({ selection, queries, actions, relief }: Props) {
               pressed={selection.relief === "3d"}
               onClick={actions.toggle3d}
               disabled={relief.loading}
-              title={selection.relief === "3d" ? "Flatten the globe" : "Raise the terrain in 3D, heights ×8"}
+              title={selection.relief === "3d" ? "Back to the flat colour map" : "Shade and raise the terrain in 3D, heights ×8"}
             >
               3D
             </ViewToggleButton>
