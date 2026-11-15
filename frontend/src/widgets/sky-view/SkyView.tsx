@@ -4,7 +4,9 @@ import type { BodyResult } from "@/entities/surface-observation";
 import { TEXTURES } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { Button } from "@/shared/ui";
+import { queryLandscape } from "./api";
 import { createSkyScene, type SkyScene } from "./scene/createSkyScene";
+import type { LandscapeData } from "./scene/ground";
 
 interface SkyViewProps {
   earth: BodyResult | null;
@@ -20,13 +22,27 @@ export default function SkyView({ earth, sun, latitudeDeg, longitudeDeg }: SkyVi
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SkyScene | null>(null);
   const [heading, setHeading] = useState(0);
-  const [textureError, setTextureError] = useState<"color" | "elevation" | null>(null);
+  const [landscape, setLandscape] = useState<LandscapeData | null>(null);
+  const [landscapeError, setLandscapeError] = useState<string | null>(null);
+  const [textureError, setTextureError] = useState(false);
 
   useEffect(() => {
-    setTextureError(null);
+    const controller = new AbortController();
+    setLandscape(null);
+    setLandscapeError(null);
+    queryLandscape(latitudeDeg, longitudeDeg, controller.signal)
+      .then(setLandscape)
+      .catch((error: Error) => {
+        if (!controller.signal.aborted) setLandscapeError(error.message);
+      });
+    return () => controller.abort();
+  }, [latitudeDeg, longitudeDeg]);
+
+  useEffect(() => {
+    setTextureError(false);
     const scene = createSkyScene(containerRef.current!, latitudeDeg, longitudeDeg, {
       onHeading: setHeading,
-      onTextureError: setTextureError,
+      onTextureError: () => setTextureError(true),
     });
     sceneRef.current = scene;
     return () => {
@@ -39,14 +55,22 @@ export default function SkyView({ earth, sun, latitudeDeg, longitudeDeg }: SkyVi
     sceneRef.current?.update({ earth, sun });
   }, [earth, sun, latitudeDeg, longitudeDeg]);
 
+  useEffect(() => {
+    if (landscape) sceneRef.current?.updateLandscape(landscape);
+  }, [landscape]);
+
   return (
     <section aria-label="First-person lunar surface view" className="absolute inset-0 overflow-hidden bg-black">
       <div ref={containerRef} className="size-full" />
 
       {textureError && (
         <div role="alert" className="absolute top-4 left-4 rounded-md bg-red-900/90 px-3 py-2.5 text-white">
-          Could not load the lunar {textureError} map at{" "}
-          {textureError === "color" ? TEXTURES.color : TEXTURES.elevation}.
+          Could not load the lunar surface texture at {TEXTURES.color}.
+        </div>
+      )}
+      {landscapeError && (
+        <div role="alert" className="absolute top-16 left-4 max-w-md rounded-md bg-red-900/90 px-3 py-2.5 text-white">
+          Could not load the lunar landscape: {landscapeError}
         </div>
       )}
 

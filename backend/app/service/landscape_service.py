@@ -675,7 +675,7 @@ def get_surface_normal_enu(lat: float, lon: float) -> np.ndarray:
 Returns a map of landscape points that are within the given area,
 where lat_start, lon_start are the top left corner of the area.
 """
-def get_landscape_map(lat_start, lon_start, lat_end, lon_end):
+def get_landscape_map(lat_start, lon_start, lat_end, lon_end, samples=None):
     # Stitches across tile boundaries: the requested box may span the equator
     # (north/south tiles), a 90 deg longitude seam, or wrap across the 0/360
     # antimeridian. Rows beyond the +-60 deg equirectangular bands are
@@ -788,4 +788,8 @@ def get_landscape_map(lat_start, lon_start, lat_end, lon_end):
                     & (cc >= 0) & (cc < ptile.width)
                     & (sub == _NODATA))
             sub[fill] = ptile.array[rr[fill], cc[fill]]
+    if samples is not None:
+        row_indices = np.rint(np.linspace(0, out_rows - 1, samples)).astype(np.intp)
+        col_indices = np.rint(np.linspace(0, out_cols - 1, samples)).astype(np.intp)
+        out = out[np.ix_(row_indices, col_indices)]
     return out

@@ -84,7 +84,14 @@ async def insolation(
     return series
 
 @router.get("/landscape")
-async def get_landscape(lat_start, lon_start, lat_end, lon_end):
+async def get_landscape(
+    lat_start: float = Query(..., ge=-90, le=90),
+    lon_start: float = Query(...),
+    lat_end: float = Query(..., ge=-90, le=90),
+    lon_end: float = Query(...),
+    samples: int = Query(default=257, ge=2, le=1024),
+):
     try:
-        return get_landscape_map(lat_start, lon_start, lat_end, lon_end)
+        landscape = get_landscape_map(lat_start, lon_start, lat_end, lon_end, samples)
+        return landscape.tolist()
     except Exception as e: raise HTTPException(status_code=400, detail=str(e))
