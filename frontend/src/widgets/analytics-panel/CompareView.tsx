@@ -6,18 +6,22 @@ import {
   litFraction,
   nextTransition,
   type InsolationSeries,
+  type SeriesVisibility,
 } from "@/entities/insolation";
 import type { SurfaceQueryState } from "@/entities/surface-observation";
 import { pointLabel } from "@/features/select-point";
 import { POINT_COLORS } from "@/shared/config";
 import { cn, formatDeg as deg } from "@/shared/lib";
 import { GraphWindow } from "./GraphWindow";
+import { SeriesToggles } from "./SeriesToggles";
 
 interface Props {
   queries: SurfaceQueryState[];
   utc: string;
   days: number;
   onDays: (days: number) => void;
+  visible: SeriesVisibility;
+  onVisible: (visible: SeriesVisibility) => void;
 }
 
 interface Row {
@@ -34,7 +38,7 @@ interface Snapshot {
   utc: string;
 }
 
-export function CompareView({ queries, utc, days, onDays }: Props) {
+export function CompareView({ queries, utc, days, onDays, visible, onVisible }: Props) {
   const settled = queries.every((q) => !q.loading);
   const [snapshot, setSnapshot] = useState<Snapshot>({ queries, utc });
   useEffect(() => {
@@ -72,7 +76,16 @@ export function CompareView({ queries, utc, days, onDays }: Props) {
   const series = useMemo<InsolationSeries[]>(
     () =>
       shown.queries.flatMap((q, index) =>
-        q.data ? [{ name: pointLabel(index), color: POINT_COLORS[index], data: q.data.insolation.insolation_graph }] : []
+        q.data
+          ? [
+              {
+                name: pointLabel(index),
+                color: POINT_COLORS[index],
+                data: q.data.insolation.insolation_graph,
+                earth: q.data.earth_graph,
+              },
+            ]
+          : []
       ),
     [shown]
   );
@@ -125,11 +138,15 @@ export function CompareView({ queries, utc, days, onDays }: Props) {
 
       {series.length > 0 && (
         <>
-          <div className="mt-5 mb-1 flex items-center justify-between">
-            <h3 className="m-0 font-medium text-muted-foreground">Illumination</h3>
+          <div className="mt-5 mb-1 flex flex-wrap items-center justify-between gap-2">
+            <SeriesToggles
+              visible={visible}
+              onChange={onVisible}
+              earthError={shown.queries.find((q) => q.data?.earth_graph_error)?.data?.earth_graph_error}
+            />
             <GraphWindow days={days} onChange={onDays} />
           </div>
-          <InsolationChart series={series} currentUtc={shown.utc} />
+          <InsolationChart series={series} currentUtc={shown.utc} visible={visible} />
           <p className="mt-1 text-xs text-muted-foreground">{days} days around the selected time, hourly samples.</p>
         </>
       )}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { InsolationChart, type InsolationSeries } from "@/entities/insolation";
+import { InsolationChart, type InsolationSeries, type SeriesVisibility } from "@/entities/insolation";
 import type { SurfaceQueryState } from "@/entities/surface-observation";
 import { activePoint, pointLabel, type Selection, type SelectionActions } from "@/features/select-point";
 import { POINT_COLORS } from "@/shared/config";
@@ -8,6 +8,7 @@ import { Button, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger } from "
 import { CompareView } from "./CompareView";
 import { GraphWindow } from "./GraphWindow";
 import { PointChips } from "./PointChips";
+import { SeriesToggles } from "./SeriesToggles";
 
 interface Props {
   selection: Selection;
@@ -22,6 +23,7 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
   const query = queries[selection.active];
   const canCompare = selection.points.length > 1;
   const [tab, setTab] = useState<Tab>("point");
+  const [visible, setVisible] = useState<SeriesVisibility>({ insolation: true, earth: true });
   const [lat, setLat] = useState("");
   const [lon, setLon] = useState("");
   const [utc, setUtc] = useState(selection.utc);
@@ -90,10 +92,25 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
           </TabsList>
           {!canCompare && <p className="m-0 text-xs text-muted-foreground">Add a second point to compare.</p>}
           <TabsContent value="point">
-            <PointView query={query} utc={selection.utc} color={color} days={selection.days} onDays={actions.setDays} />
+            <PointView
+              query={query}
+              utc={selection.utc}
+              color={color}
+              days={selection.days}
+              onDays={actions.setDays}
+              visible={visible}
+              onVisible={setVisible}
+            />
           </TabsContent>
           <TabsContent value="compare">
-            <CompareView queries={queries} utc={selection.utc} days={selection.days} onDays={actions.setDays} />
+            <CompareView
+              queries={queries}
+              utc={selection.utc}
+              days={selection.days}
+              onDays={actions.setDays}
+              visible={visible}
+              onVisible={setVisible}
+            />
           </TabsContent>
         </Tabs>
       )}
@@ -107,12 +124,14 @@ interface PointViewProps {
   color: string;
   days: number;
   onDays: (days: number) => void;
+  visible: SeriesVisibility;
+  onVisible: (visible: SeriesVisibility) => void;
 }
 
-function PointView({ query, utc, color, days, onDays }: PointViewProps) {
+function PointView({ query, utc, color, days, onDays, visible, onVisible }: PointViewProps) {
   const { data, loading, error } = query;
   const series = useMemo<InsolationSeries[]>(
-    () => (data ? [{ name: "Illumination", color, data: data.insolation.insolation_graph }] : []),
+    () => (data ? [{ name: "Point", color, data: data.insolation.insolation_graph, earth: data.earth_graph }] : []),
     [data, color]
   );
   if (error) return <p className="mt-2 whitespace-pre-wrap text-destructive">{error}</p>;
@@ -139,15 +158,16 @@ function PointView({ query, utc, color, days, onDays }: PointViewProps) {
         </tbody>
       </table>
 
-      <div className="mt-5 mb-1 flex items-center justify-between">
-        <h3 className="m-0 font-medium text-muted-foreground">Illumination</h3>
-        <GraphWindow days={days} onChange={onDays} />
-      </div>
+      <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Illumination</h3>
       <p className="m-0 text-2xl tabular-nums">
         {data.insolation.insolation_watts.toFixed(1)}{" "}
         <span className="text-[13px] text-muted-foreground">W/m² now</span>
       </p>
-      <InsolationChart series={series} currentUtc={utc} />
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <SeriesToggles visible={visible} onChange={onVisible} earthError={data.earth_graph_error} />
+        <GraphWindow days={days} onChange={onDays} />
+      </div>
+      <InsolationChart series={series} currentUtc={utc} visible={visible} />
       <p className="mt-1 text-xs text-muted-foreground">{days} days around the selected time, hourly samples.</p>
     </div>
   );
