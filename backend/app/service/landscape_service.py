@@ -997,8 +997,8 @@ def _assemble_landscape_map(
 Returns a map of landscape points that are within the given area,
 where lat_start, lon_start are the top left corner of the area.
 """
-def get_landscape_map(lat_start, lon_start, lat_end, lon_end):
-    return _assemble_landscape_map(lat_start, lon_start, lat_end, lon_end)
+def get_landscape_map(lat_start, lon_start, lat_end, lon_end, samples=None):
+    return _assemble_landscape_map(lat_start, lon_start, lat_end, lon_end, samples=samples)
 
 
 def get_landscape_map_low_res(
