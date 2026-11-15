@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import spiceypy as spice
 
-import service.landscape_service as landscape_service
+import app.service.landscape_service as landscape_service
 
 KERNEL_DIR = Path(__file__).parent.parent.parent / "kernels"
 
