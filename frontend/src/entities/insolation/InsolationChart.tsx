@@ -26,6 +26,8 @@ export interface InsolationSeries {
   color: string;
   data: InsolationPoint[];
   earth?: EarthPoint[] | null;
+  earthName?: string;
+  earthColor?: string;
 }
 
 interface Props {
@@ -38,6 +40,8 @@ const NOW = "#e6e8ec";
 const AXIS = "#3a4250";
 const LABEL = "#8a93a3";
 const HORIZON = "#55606f";
+const BELOW_HORIZON = "#6b7280";
+const BELOW_HORIZON_NAME = "Earth below horizon";
 const BOTH: SeriesVisibility = { insolation: true, earth: true };
 
 const shortUtc = (utc: string) => utc.slice(5, 16).replace("T", " ");
@@ -46,7 +50,7 @@ interface TooltipParam {
   seriesName: string;
   seriesIndex: number;
   axisValue: string;
-  value: number;
+  value: number | null;
   marker: string;
 }
 
@@ -99,17 +103,25 @@ export function InsolationChart({ series, currentUtc, visible = BOTH }: Props) {
         });
       }
       if (showEarth && s.earth) {
-        kinds.push("earth");
         const byUtc = new Map(s.earth.map((d) => [d.utc, d.elevation_deg]));
-        out.push({
+        const values = axis.map((d) => byUtc.get(d.utc) ?? null);
+        const above = values.map((v, k) =>
+          v !== null && (v > 0 || (values[k - 1] ?? -1) > 0 || (values[k + 1] ?? -1) > 0) ? v : null
+        );
+        const below = values.map((v) => (v !== null && v <= 0 ? v : null));
+        const base = {
           type: "line",
-          name: s.name,
           yAxisIndex: 1,
-          data: axis.map((d) => byUtc.get(d.utc) ?? null),
           showSymbol: false,
           sampling: "lttb",
-          color: s.color,
           lineStyle: { width: 1.5, type: "dashed" },
+        };
+        kinds.push("earth");
+        out.push({
+          ...base,
+          name: s.earthName ?? s.name,
+          data: above,
+          color: s.earthColor ?? s.color,
           markLine:
             i === 0
               ? {
@@ -121,26 +133,35 @@ export function InsolationChart({ series, currentUtc, visible = BOTH }: Props) {
                 }
               : undefined,
         });
+        kinds.push("earth");
+        out.push({ ...base, name: BELOW_HORIZON_NAME, data: below, color: BELOW_HORIZON });
       }
       return out;
     });
+    const legendNames = [...new Set(lines.map((l) => l.name))].sort(
+      (a, b) => Number(a === BELOW_HORIZON_NAME) - Number(b === BELOW_HORIZON_NAME)
+    );
+    const showLegend = multi || showEarth;
 
     chartRef.current?.setOption(
       {
         animation: false,
-        grid: { left: 48, right: showEarth ? 44 : 16, top: multi ? 36 : 24, bottom: 28 },
-        legend: multi
-          ? { top: 0, data: series.map((s) => s.name), textStyle: { color: LABEL }, itemWidth: 14, itemHeight: 2 }
+        grid: { left: 48, right: showEarth ? 44 : 16, top: showLegend ? 52 : 24, bottom: 28 },
+        legend: showLegend
+          ? { top: 0, data: legendNames, textStyle: { color: LABEL }, itemWidth: 14, itemHeight: 2 }
           : undefined,
         tooltip: {
           trigger: "axis",
           formatter: (params: TooltipParam[]) => {
-            const rows = params.map((p) => {
-              const kind = kinds[p.seriesIndex];
-              const value =
-                kind === "earth" ? `Earth ${Number(p.value).toFixed(1)}°` : `${Number(p.value).toFixed(1)} W/m²`;
-              return `${p.marker} ${multi ? `${p.seriesName} · ` : ""}${value}`;
-            });
+            const rows = params
+              .filter((p) => p.value !== null && p.value !== undefined)
+              .map((p) => {
+                const kind = kinds[p.seriesIndex];
+                const value =
+                  kind === "earth" ? `Earth ${Number(p.value).toFixed(1)}°` : `${Number(p.value).toFixed(1)} W/m²`;
+                const label = p.seriesName === BELOW_HORIZON_NAME ? "" : multi ? `${p.seriesName} · ` : "";
+                return `${p.marker} ${label}${value}`;
+              });
             return [shortUtc(params[0].axisValue), ...rows].join("<br/>");
           },
         },

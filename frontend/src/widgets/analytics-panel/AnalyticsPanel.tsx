@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { InsolationChart, type InsolationSeries, type SeriesVisibility } from "@/entities/insolation";
 import type { SurfaceQueryState } from "@/entities/surface-observation";
 import { activePoint, pointLabel, type Selection, type SelectionActions } from "@/features/select-point";
-import { POINT_COLORS } from "@/shared/config";
+import { EARTH_COLOR, POINT_COLORS } from "@/shared/config";
 import { cn, formatDeg as deg, nowUtc } from "@/shared/lib";
 import { Button, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui";
 import { CompareView } from "./CompareView";
@@ -135,10 +135,12 @@ function PointView({ query, utc, color, days, onDays, visible, onVisible }: Poin
       data
         ? [
             {
-              name: "Point",
+              name: "Illumination",
               color,
               data: data.insolation.insolation_graph,
               earth: data.earth_visibility.elevation_graph,
+              earthName: "Earth above horizon",
+              earthColor: EARTH_COLOR,
             },
           ]
         : [],
