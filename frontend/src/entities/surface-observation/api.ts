@@ -69,6 +69,21 @@ export function queryInsolation(
   );
 }
 
+export function queryEarthVisibility(
+  utc: string,
+  days: number,
+  lat_deg: number,
+  lon_deg: number,
+  signal?: AbortSignal
+): Promise<EarthVisibilityResult> {
+  const half = (days * 24) / 2;
+  return postJson(
+    "/positions/earth-visibility",
+    { utc_from: shiftUtc(utc, -half), utc_to: shiftUtc(utc, half), lat_deg, lon_deg, step_s: GRAPH_STEP_S },
+    signal
+  );
+}
+
 export async function queryObservation(
   utc: string,
   days: number,
@@ -76,9 +91,10 @@ export async function queryObservation(
   lon_deg: number,
   signal?: AbortSignal
 ): Promise<SurfaceQueryResponse> {
-  const [surface, graph] = await Promise.all([
+  const [surface, graph, earth_visibility] = await Promise.all([
     querySurface(utc, lat_deg, lon_deg, 0, signal),
     queryInsolation(utc, days, lat_deg, lon_deg, signal),
+    queryEarthVisibility(utc, days, lat_deg, lon_deg, signal),
   ]);
-  return { ...surface, insolation: { ...surface.insolation, insolation_graph: graph } };
+  return { ...surface, insolation: { ...surface.insolation, insolation_graph: graph }, earth_visibility };
 }

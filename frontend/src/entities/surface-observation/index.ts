@@ -1,4 +1,4 @@
-export { queryInsolation, queryObservation, querySurface } from "./api";
+export { queryEarthVisibility, queryInsolation, queryObservation, querySurface } from "./api";
 export type {
   BodyResult,
   EarthElevationPoint,
