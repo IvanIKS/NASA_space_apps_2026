@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
 import Globe, { type GlobeMethods } from "react-globe.gl";
 import { pointLabel } from "@/features/select-point";
+import { RELIEF_RANGE_KM, SEA_LEVEL } from "@/entities/landscape";
 import { POINT_COLORS, TEXTURES } from "@/shared/config";
 import type { LatLon } from "@/shared/lib";
 
@@ -10,6 +12,7 @@ interface Props {
   onSelect: (point: LatLon) => void;
   onActivate: (index: number) => void;
   imageUrl?: string | null;
+  displacementUrl?: string | null;
 }
 
 interface Pin extends LatLon {
@@ -23,6 +26,10 @@ const LANDMARKS = [
   { name: "Apollo 11", lat: 0.674, lon: 23.473 },
   { name: "Shackleton", lat: -89.67, lon: 129.78 },
 ];
+
+const GLOBE_RADIUS_KM = 1737.4;
+const VERTICAL_EXAGGERATION = 8;
+const DISPLACEMENT_SCALE = (RELIEF_RANGE_KM / GLOBE_RADIUS_KM) * 100 * VERTICAL_EXAGGERATION;
 
 const hexToRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ");
 
@@ -48,7 +55,7 @@ function createPin(pin: Pin, onActivate: (index: number) => void): HTMLElement {
   return el;
 }
 
-export function MoonGlobe({ points, active, onSelect, onActivate, imageUrl }: Props) {
+export function MoonGlobe({ points, active, onSelect, onActivate, imageUrl, displacementUrl }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeMethods>();
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
@@ -81,6 +88,44 @@ export function MoonGlobe({ points, active, onSelect, onActivate, imageUrl }: Pr
     globe.pointOfView({ lat: point.lat, lng: point.lon, altitude: globe.pointOfView().altitude }, ms);
   }, [point, ready]);
 
+  useEffect(() => {
+    const globe = globeRef.current;
+    if (!ready || !globe) return;
+    let material: THREE.MeshPhongMaterial | null = null;
+    globe.scene().traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!material && mesh.isMesh && mesh.geometry instanceof THREE.SphereGeometry && (mesh.material as THREE.Material).type === "MeshPhongMaterial") {
+        material = mesh.material as THREE.MeshPhongMaterial;
+      }
+    });
+    if (!material) return;
+    const target: THREE.MeshPhongMaterial = material;
+    if (!displacementUrl) {
+      target.displacementMap?.dispose();
+      target.displacementMap = null;
+      target.displacementScale = 0;
+      target.needsUpdate = true;
+      return;
+    }
+    let active = true;
+    new THREE.TextureLoader().load(displacementUrl, (texture) => {
+      if (!active) {
+        texture.dispose();
+        return;
+      }
+      target.displacementMap?.dispose();
+      target.displacementMap = texture;
+      target.displacementScale = DISPLACEMENT_SCALE;
+      target.displacementBias = -SEA_LEVEL * DISPLACEMENT_SCALE;
+      target.needsUpdate = true;
+    });
+    return () => {
+      active = false;
+    };
+  }, [displacementUrl, ready]);
+
+  const raised = Boolean(displacementUrl);
+
   return (
     <div ref={wrapRef} className="absolute inset-0">
       {size && (
@@ -91,6 +136,7 @@ export function MoonGlobe({ points, active, onSelect, onActivate, imageUrl }: Pr
           animateIn={false}
           backgroundColor="#000000"
           globeImageUrl={imageUrl ?? TEXTURES.color}
+          globeCurvatureResolution={raised ? 0.3 : 4}
           bumpImageUrl={TEXTURES.elevation}
           showAtmosphere={false}
           showGraticules
@@ -99,7 +145,7 @@ export function MoonGlobe({ points, active, onSelect, onActivate, imageUrl }: Pr
           htmlElementsData={pins}
           htmlLat="lat"
           htmlLng="lon"
-          htmlAltitude={0.005}
+          htmlAltitude={raised ? 0.07 : 0.005}
           htmlElement={pinElement}
           htmlElementVisibilityModifier={(el, visible) => { el.style.opacity = visible ? "1" : "0"; }}
           htmlTransitionDuration={0}
@@ -107,6 +153,7 @@ export function MoonGlobe({ points, active, onSelect, onActivate, imageUrl }: Pr
           ringLat="lat"
           ringLng="lon"
           ringColor={() => (t: number) => `rgba(${hexToRgb(ringColor)}, ${0.9 * (1 - t)})`}
+          ringAltitude={raised ? 0.07 : 0.0015}
           ringMaxRadius={5}
           ringPropagationSpeed={2.5}
           ringRepeatPeriod={1000}
@@ -114,6 +161,7 @@ export function MoonGlobe({ points, active, onSelect, onActivate, imageUrl }: Pr
           labelLat="lat"
           labelLng="lon"
           labelText="name"
+          labelAltitude={raised ? 0.07 : 0.01}
           labelSize={1.2}
           labelDotRadius={0.3}
           labelColor={() => "rgba(255, 255, 255, 0.75)"}

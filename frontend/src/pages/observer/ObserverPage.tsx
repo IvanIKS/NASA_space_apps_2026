@@ -47,14 +47,15 @@ export function ObserverPage({ selection, queries, actions, relief }: Props) {
               active={selection.active}
               onSelect={actions.place}
               onActivate={actions.activate}
-              imageUrl={selection.relief ? relief.url : null}
+              imageUrl={selection.relief !== "off" ? relief.url : null}
+              displacementUrl={selection.relief === "3d" ? relief.displacementUrl : null}
             />
             <p className="pointer-events-none absolute bottom-2 left-3 m-0 text-[11px] text-muted-foreground">
-              {selection.relief && relief.url
-                ? "Imagery: NASA SVS, LRO · Relief: LROC WAC GLD100, 10 km cells"
+              {selection.relief !== "off" && relief.url
+                ? `Imagery: NASA SVS, LRO · Relief: LROC WAC GLD100, 10 km cells${selection.relief === "3d" ? " · heights ×8" : ""}`
                 : "Imagery: NASA Scientific Visualization Studio, LRO"}
             </p>
-            {selection.relief && relief.error && (
+            {selection.relief !== "off" && relief.error && (
               <p className="absolute top-3 left-3 m-0 rounded-md bg-card/90 px-2 py-1 text-xs text-destructive">
                 Relief unavailable: {relief.error}
               </p>
@@ -65,12 +66,23 @@ export function ObserverPage({ selection, queries, actions, relief }: Props) {
           {!surface && (
             <ViewToggleButton
               icon="mountain"
-              pressed={selection.relief}
+              pressed={selection.relief !== "off"}
               onClick={actions.toggleRelief}
               disabled={relief.loading}
-              title={selection.relief ? "Back to the colour map" : "Shade the globe with LRO terrain"}
+              title={selection.relief !== "off" ? "Back to the colour map" : "Shade the globe with LRO terrain"}
             >
               {relief.loading ? "Loading relief…" : "Relief"}
+            </ViewToggleButton>
+          )}
+          {!surface && (
+            <ViewToggleButton
+              icon="box"
+              pressed={selection.relief === "3d"}
+              onClick={actions.toggle3d}
+              disabled={relief.loading}
+              title={selection.relief === "3d" ? "Flatten the globe" : "Raise the terrain in 3D, heights ×8"}
+            >
+              3D
             </ViewToggleButton>
           )}
           <ViewToggleButton

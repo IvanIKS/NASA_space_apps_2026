@@ -1,9 +1,9 @@
 import type { ComponentProps } from "react";
-import { Globe, Mountain, PersonStanding } from "lucide-react";
+import { Box, Globe, Mountain, PersonStanding } from "lucide-react";
 import { cn } from "@/shared/lib";
 import { Button } from "./button";
 
-const ICONS = { person: PersonStanding, globe: Globe, mountain: Mountain } as const;
+const ICONS = { person: PersonStanding, globe: Globe, mountain: Mountain, box: Box } as const;
 
 interface Props extends ComponentProps<typeof Button> {
   icon: keyof typeof ICONS;
