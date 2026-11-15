@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
-from ..schemas import SurfaceQueryRequest, SurfaceQueryResponse, BodyResult, InsolationResult, SlopeResult
-from app.service.spice_service import query_surface, calculate_insolation_series
+from ..schemas import SurfaceQueryRequest, SurfaceQueryResponse, BodyResult, InsolationResult, SlopeResult, EarthVisibilityResponse, EarthVisibilityRequest
+from app.service.spice_service import query_surface, calculate_insolation_series, earth_visibility_windows
 from app.service.landscape_service import (
     get_landscape_map, has_map_data, get_slope_and_aspect)
 

@@ -8,7 +8,7 @@ APP_DIR = Path(__file__).resolve().parent.parent / "app"
 if str(APP_DIR) not in sys.path:
     sys.path.insert(0, str(APP_DIR))
 
-import service.spice_service as spice_service  # noqa: E402
+import app.service.spice_service as spice_service  # noqa: E402
 from app.routers.positions import earth_visibility, surface_query  # noqa: E402
 from app.schemas import EarthVisibilityRequest, SurfaceQueryRequest  # noqa: E402
 
