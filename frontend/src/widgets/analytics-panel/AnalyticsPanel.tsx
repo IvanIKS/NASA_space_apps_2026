@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { InsolationChart, type InsolationSeries, type SeriesVisibility } from "@/entities/insolation";
 import type { SurfaceQueryState } from "@/entities/surface-observation";
 import { activePoint, pointLabel, type Selection, type SelectionActions } from "@/features/select-point";
-import { EARTH_COLOR, POINT_COLORS } from "@/shared/config";
-import { cn, formatDeg as deg, nowUtc } from "@/shared/lib";
+import { EARTH_COLOR, ILLUMINATION_COLOR, POINT_COLORS } from "@/shared/config";
+import { cn, formatDeg as deg, formatSlope, nowUtc } from "@/shared/lib";
 import { Button, Input, Label, Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui";
 import { CompareView } from "./CompareView";
 import { GraphWindow } from "./GraphWindow";
@@ -95,7 +95,6 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
             <PointView
               query={query}
               utc={selection.utc}
-              color={color}
               days={selection.days}
               onDays={actions.setDays}
               visible={visible}
@@ -121,14 +120,13 @@ export function AnalyticsPanel({ selection, queries, actions }: Props) {
 interface PointViewProps {
   query: SurfaceQueryState;
   utc: string;
-  color: string;
   days: number;
   onDays: (days: number) => void;
   visible: SeriesVisibility;
   onVisible: (visible: SeriesVisibility) => void;
 }
 
-function PointView({ query, utc, color, days, onDays, visible, onVisible }: PointViewProps) {
+function PointView({ query, utc, days, onDays, visible, onVisible }: PointViewProps) {
   const { data, loading, error } = query;
   const series = useMemo<InsolationSeries[]>(
     () =>
@@ -136,7 +134,7 @@ function PointView({ query, utc, color, days, onDays, visible, onVisible }: Poin
         ? [
             {
               name: "Illumination",
-              color,
+              color: ILLUMINATION_COLOR,
               data: data.insolation.insolation_graph,
               earth: data.earth_visibility.elevation_graph,
               earthName: "Earth above horizon",
@@ -144,7 +142,7 @@ function PointView({ query, utc, color, days, onDays, visible, onVisible }: Poin
             },
           ]
         : [],
-    [data, color]
+    [data]
   );
   if (error) return <p className="mt-2 whitespace-pre-wrap text-destructive">{error}</p>;
   if (!data) return <p className="mt-2 text-muted-foreground">Loading…</p>;
@@ -167,6 +165,12 @@ function PointView({ query, utc, color, days, onDays, visible, onVisible }: Poin
             <td className="py-1 text-right">{deg(data.earth.azimuth_deg)}</td>
             <td className="py-1 text-right">{deg(data.earth.elevation_deg)}</td>
           </tr>
+          {data.slope && (
+            <tr className="border-t border-border">
+              <td className="py-1">Slope</td>
+              <td className="py-1 text-right" colSpan={2}>{formatSlope(data.slope.slope_deg, data.slope.aspect_deg)}</td>
+            </tr>
+          )}
         </tbody>
       </table>
 

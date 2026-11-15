@@ -11,7 +11,7 @@ import {
 import type { SurfaceQueryState } from "@/entities/surface-observation";
 import { pointLabel } from "@/features/select-point";
 import { POINT_COLORS } from "@/shared/config";
-import { cn, formatDeg as deg } from "@/shared/lib";
+import { cn, compassPoint, formatDeg as deg } from "@/shared/lib";
 import { GraphWindow } from "./GraphWindow";
 import { SeriesToggles } from "./SeriesToggles";
 
@@ -29,6 +29,7 @@ interface Row {
   sunEl: number;
   earthEl: number;
   earthLos: number;
+  slope: string | null;
   watts: number;
   lit: number;
   next: string;
@@ -59,6 +60,7 @@ export function CompareView({ queries, utc, days, onDays, visible, onVisible }: 
           sunEl: data.sun.elevation_deg,
           earthEl: data.earth.elevation_deg,
           earthLos: data.earth_visibility.visible_fraction,
+          slope: data.slope ? (data.slope.slope_deg < 0.05 ? "flat" : `${data.slope.slope_deg.toFixed(1)}° ${compassPoint(data.slope.aspect_deg)}`) : null,
           watts: data.insolation.insolation_watts,
           lit: litFraction(graph),
           next: t ? `${t.kind === "sunrise" ? "↑" : "↓"} ${formatHours(hoursBetween(utc, t.utc))}` : "—",
@@ -67,6 +69,7 @@ export function CompareView({ queries, utc, days, onDays, visible, onVisible }: 
     [shown]
   );
   const loaded = rows.filter((r): r is Row => r !== null);
+  const anySlope = loaded.some((r) => r.slope !== null);
   const best = (key: "sunEl" | "watts" | "lit" | "earthLos") => {
     const values = loaded.map((r) => r[key]);
     const max = Math.max(...values);
@@ -104,6 +107,7 @@ export function CompareView({ queries, utc, days, onDays, visible, onVisible }: 
             <th className="py-1 text-right font-medium" title="Sun elevation">Sun</th>
             <th className="py-1 text-right font-medium" title="Earth elevation">Earth</th>
             <th className="py-1 text-right font-medium" title="Share of the graph window with direct Earth line of sight">LOS</th>
+            {anySlope && <th className="py-1 text-right font-medium" title="Terrain slope and the direction it faces">Slope</th>}
             <th className="py-1 text-right font-medium" title="Illumination now">W/m²</th>
             <th className="py-1 text-right font-medium" title="Share of the graph window in sunlight">Lit</th>
             <th className="py-1 text-right font-medium" title="Next sunrise ↑ or sunset ↓">Next</th>
@@ -123,12 +127,13 @@ export function CompareView({ queries, utc, days, onDays, visible, onVisible }: 
                   <td className={hi(r.sunEl === bestSunEl)}>{deg(r.sunEl)}</td>
                   <td className="py-1.5 text-right">{deg(r.earthEl)}</td>
                   <td className={hi(r.earthLos === bestEarthLos)}>{Math.round(r.earthLos * 100)}%</td>
+                  {anySlope && <td className="py-1.5 text-right whitespace-nowrap">{r.slope ?? "—"}</td>}
                   <td className={hi(r.watts === bestWatts)}>{r.watts.toFixed(0)}</td>
                   <td className={hi(r.lit === bestLit)}>{Math.round(r.lit * 100)}%</td>
                   <td className="py-1.5 text-right whitespace-nowrap">{r.next}</td>
                 </>
               ) : (
-                <td className="py-1.5 text-right" colSpan={6}>
+                <td className="py-1.5 text-right" colSpan={anySlope ? 7 : 6}>
                   {shown.queries[index].error ? <span className="text-destructive">error</span> : "…"}
                 </td>
               )}
@@ -137,7 +142,7 @@ export function CompareView({ queries, utc, days, onDays, visible, onVisible }: 
         </tbody>
       </table>
       <p className="mt-1.5 text-[11px] text-muted-foreground">
-        Sun and Earth elevation at the selected time; Lit is the share of the graph window with sunlight; Next is the time
+        Sun and Earth elevation at the selected time; Slope is the ground tilt and the compass direction it faces; Lit is the share of the graph window with sunlight; Next is the time
         to the next sunrise ↑ or sunset ↓. Best values in bold.
       </p>
 

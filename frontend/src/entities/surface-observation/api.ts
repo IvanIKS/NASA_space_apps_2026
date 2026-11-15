@@ -32,6 +32,11 @@ export interface EarthVisibilityResult {
   elevation_graph: EarthElevationPoint[];
 }
 
+export interface SlopeResult {
+  slope_deg: number;
+  aspect_deg: number;
+}
+
 export interface SurfaceQueryResponse {
   earth: BodyResult;
   sun: BodyResult;
@@ -40,6 +45,7 @@ export interface SurfaceQueryResponse {
     insolation_graph: InsolationPoint[];
   };
   earth_visibility: EarthVisibilityResult;
+  slope: SlopeResult | null;
 }
 
 export const GRAPH_STEP_S = 3600;

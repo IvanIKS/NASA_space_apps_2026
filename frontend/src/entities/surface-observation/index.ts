@@ -4,6 +4,7 @@ export type {
   EarthElevationPoint,
   EarthVisibilityResult,
   EarthVisibilityWindow,
+  SlopeResult,
   SurfaceQueryResponse,
 } from "./api";
 export { useSurfaceQueries } from "./useSurfaceQueries";
