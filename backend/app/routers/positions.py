@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
 from ..schemas import SurfaceQueryRequest, SurfaceQueryResponse, BodyResult, InsolationResult, SlopeResult
 from app.service.spice_service import query_surface, calculate_insolation_series
-from app.service.landscape_service import get_landscape_map, has_map_data
+from app.service.landscape_service import (
+    get_landscape_map, has_map_data, get_slope_and_aspect)
 
 router = APIRouter(prefix="/positions", tags=["positions"])
 
@@ -20,6 +21,12 @@ async def surface_query(req: SurfaceQueryRequest):
     if not has_map_data(req.lat_deg, req.lon_deg):
         warnings.append(_NO_LANDSCAPE_DATA_WARNING)
 
+    slope_aspect = get_slope_and_aspect(req.lat_deg, req.lon_deg)
+    slope_result = (
+        SlopeResult(slope_deg=slope_aspect[0], aspect_deg=slope_aspect[1])
+        if slope_aspect is not None else None
+    )
+
     return SurfaceQueryResponse(
         earth=BodyResult(
             azimuth_deg=raw["earth"]["azimuth_deg"],
@@ -37,10 +44,7 @@ async def surface_query(req: SurfaceQueryRequest):
             insolation_watts=raw["insolation_watts"],
             insolation_graph=raw["insolation_graph"]
         ),
-        slope=SlopeResult(
-            slope_deg=raw["slope_deg"],
-            aspect_deg=raw["aspect_deg"]
-        ),
+        slope=slope_result,
         warnings=warnings,
     )
 

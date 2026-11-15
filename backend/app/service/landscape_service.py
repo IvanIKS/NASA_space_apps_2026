@@ -543,6 +543,73 @@ def has_map_data(lat: float, lon: float) -> bool:
     return int(tile.array[row, col]) != tile.nodata
 
 
+# Default horizontal baseline (metres) for slope sampling: one DEM pixel, the
+# finest scale the 100 m/px GLD100 supports.
+_SLOPE_BASELINE_M = 100.0
+
+
+def _sample_elevation(lat: float, lon: float):
+    """Elevation (metres) at a point, or None when out of coverage or nodata."""
+    try:
+        tile = _find_tile(lat, lon)
+    except ValueError:
+        return None
+    row, col = tile.pixel_index(lat, lon)
+    value = int(tile.array[row, col])
+    return None if value == tile.nodata else value
+
+
+def _axis_gradient(far, near, center, step):
+    """Elevation gradient (m/m) along one axis: a central difference when both
+    ends have data, a one-sided difference when only one does, else None."""
+    if far is not None and near is not None:
+        return (far - near) / (2.0 * step)
+    if far is not None and center is not None:
+        return (far - center) / step
+    if near is not None and center is not None:
+        return (center - near) / step
+    return None
+
+
+def get_slope_and_aspect(lat: float, lon: float,
+                         baseline_m: float = _SLOPE_BASELINE_M):
+    """Return ``(slope_deg, aspect_deg)`` of the terrain at a point, or ``None``
+    when the DEM has no data to compute it there.
+
+    The gradient is estimated by sampling the elevation at the point and at four
+    neighbours ``baseline_m`` metres to the north/south/east/west; sampling in
+    lat/lon lets get_elevation pick the right tile and projection for each
+    point, so this works across tile seams and in the polar discs. ``slope_deg``
+    is the steepest-descent angle; ``aspect_deg`` is the compass azimuth
+    (clockwise from north) the slope faces downhill. Slope is only meaningful on
+    the metre-valued ".IMG" product -- on the byte ".TIF" browse the numbers are
+    not real heights."""
+    if not _MAP_LOADED:
+        return None
+    center = _sample_elevation(lat, lon)
+    if center is None:
+        return None
+
+    dlat = baseline_m * _DEG_PER_M
+    dlon = baseline_m * _DEG_PER_M / math.cos(math.radians(lat))
+    north = _sample_elevation(lat + dlat, lon)
+    south = _sample_elevation(lat - dlat, lon)
+    east = _sample_elevation(lat, lon + dlon)
+    west = _sample_elevation(lat, lon - dlon)
+
+    gx = _axis_gradient(east, west, center, baseline_m)   # d(elev)/d(east)
+    gy = _axis_gradient(north, south, center, baseline_m)  # d(elev)/d(north)
+    if gx is None or gy is None:
+        return None
+
+    slope_deg = math.degrees(math.atan(math.hypot(gx, gy)))
+    # The uphill gradient is (gx, gy) in (east, north); the slope faces the
+    # opposite way. Azimuth is measured clockwise from north; flat ground
+    # (gx == gy == 0) gives 0.0.
+    aspect_deg = math.degrees(math.atan2(-gx, -gy)) % 360.0
+    return slope_deg, aspect_deg
+
+
 """This function returns the maximum distance to a landscape point that the sun could be obstructed by
 base on the altitude of observer and possible height of the landscape objects that could rise from
 beyond the horizon."""

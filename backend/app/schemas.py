@@ -29,7 +29,7 @@ class SurfaceQueryResponse(BaseModel):
     earth: BodyResult
     sun: BodyResult
     insolation: InsolationResult
-    slope: SlopeResult
+    slope: SlopeResult | None = None
     warnings: list[str] = []
 
 
