@@ -48,11 +48,11 @@ export function ObserverPage({ selection, queries, actions, relief }: Props) {
               onSelect={actions.place}
               onActivate={actions.activate}
               imageUrl={selection.relief !== "off" ? relief.url : null}
-              displacementUrl={selection.relief === "3d" ? relief.displacementUrl : null}
+              heatPoints={selection.relief === "3d" ? relief.heatPoints : null}
             />
             <p className="pointer-events-none absolute bottom-2 left-3 m-0 text-[11px] text-muted-foreground">
               {selection.relief !== "off" && relief.url
-                ? `Imagery: NASA SVS, LRO · Landscape: LROC WAC GLD100, 10 km cells${selection.relief === "3d" ? " · heights ×8" : ""}`
+                ? `Imagery: NASA SVS, LRO · Landscape: LROC WAC GLD100, 10 km cells${selection.relief === "3d" ? " · elevation heat map" : ""}`
                 : "Imagery: NASA Scientific Visualization Studio, LRO"}
             </p>
             {selection.relief !== "off" && relief.error && (
@@ -80,7 +80,7 @@ export function ObserverPage({ selection, queries, actions, relief }: Props) {
               pressed={selection.relief === "3d"}
               onClick={actions.toggle3d}
               disabled={relief.loading}
-              title={selection.relief === "3d" ? "Back to the flat colour map" : "Shade and raise the terrain in 3D, heights ×8"}
+              title={selection.relief === "3d" ? "Back to the flat colour map" : "Elevation as a 3D heat map: red is high, blue is low"}
             >
               3D
             </ViewToggleButton>

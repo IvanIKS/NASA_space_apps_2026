@@ -59,46 +59,24 @@ function rollToDateline(grid: LandscapeGrid): LandscapeGrid {
 export const SEA_LEVEL = Math.round((0 - GLD100_MIN_M) / METRES_PER_LEVEL) / 255;
 export const RELIEF_RANGE_KM = (GLD100_MAX_M - GLD100_MIN_M) / 1000;
 
-function fillPolarRows(grid: LandscapeGrid): number[][] {
-  const rows = grid.data.map((row) => [...row]);
-  const valid = (row: number[]) => row.some((v) => v !== 0);
-  const first = rows.findIndex(valid);
-  const last = rows.length - 1 - [...rows].reverse().findIndex(valid);
-  if (first < 0) return rows;
-  for (let y = 0; y < first; y += 1) rows[y] = rows[first];
-  for (let y = last + 1; y < rows.length; y += 1) rows[y] = rows[last];
-  const level = Math.round(SEA_LEVEL * 255);
-  return rows.map((row) => row.map((v) => (v === 0 ? level : v)));
-}
+export type HeatPoint = [lat: number, lon: number, weight: number];
 
-export function buildDisplacementTexture(source: LandscapeGrid): string {
+const HEAT_STEP = 6;
+
+export function buildHeatPoints(source: LandscapeGrid): HeatPoint[] {
   const grid = rollToDateline(source);
-  const rows = fillPolarRows(grid);
-  const canvas = document.createElement("canvas");
-  canvas.width = grid.width;
-  canvas.height = grid.height;
-  const ctx = canvas.getContext("2d")!;
-  const pixels = ctx.createImageData(grid.width, grid.height);
-  for (let y = 0; y < grid.height; y += 1) {
-    for (let x = 0; x < grid.width; x += 1) {
-      const i = (y * grid.width + x) * 4;
-      const v = rows[y][x];
-      pixels.data[i] = v;
-      pixels.data[i + 1] = v;
-      pixels.data[i + 2] = v;
-      pixels.data[i + 3] = 255;
+  const level = SEA_LEVEL * 255;
+  const latStep = (grid.lat_start - grid.lat_end) / grid.height;
+  const lonStep = (grid.lon_end - grid.lon_start) / grid.width;
+  const out: HeatPoint[] = [];
+  for (let y = HEAT_STEP / 2; y < grid.height; y += HEAT_STEP) {
+    for (let x = HEAT_STEP / 2; x < grid.width; x += HEAT_STEP) {
+      const v = grid.data[y][x];
+      if (v <= level) continue;
+      out.push([grid.lat_start - (y + 0.5) * latStep, grid.lon_start + (x + 0.5) * lonStep, (v - level) / (255 - level)]);
     }
   }
-  ctx.putImageData(pixels, 0, 0);
-  const smooth = document.createElement("canvas");
-  smooth.width = grid.width * 2;
-  smooth.height = grid.height * 2;
-  const smoothCtx = smooth.getContext("2d")!;
-  smoothCtx.imageSmoothingEnabled = true;
-  smoothCtx.imageSmoothingQuality = "high";
-  smoothCtx.filter = "blur(1.5px)";
-  smoothCtx.drawImage(canvas, 0, 0, smooth.width, smooth.height);
-  return smooth.toDataURL("image/png");
+  return out;
 }
 
 export async function buildReliefTexture(source: LandscapeGrid, colorSrc: string): Promise<string> {
