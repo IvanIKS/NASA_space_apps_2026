@@ -5,7 +5,6 @@ export interface InsolationPoint {
 
 export interface EarthPoint {
   utc: string;
-  azimuth_deg: number;
   elevation_deg: number;
 }
 

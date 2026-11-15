@@ -131,7 +131,17 @@ interface PointViewProps {
 function PointView({ query, utc, color, days, onDays, visible, onVisible }: PointViewProps) {
   const { data, loading, error } = query;
   const series = useMemo<InsolationSeries[]>(
-    () => (data ? [{ name: "Point", color, data: data.insolation.insolation_graph, earth: data.earth_graph }] : []),
+    () =>
+      data
+        ? [
+            {
+              name: "Point",
+              color,
+              data: data.insolation.insolation_graph,
+              earth: data.earth_visibility.elevation_graph,
+            },
+          ]
+        : [],
     [data, color]
   );
   if (error) return <p className="mt-2 whitespace-pre-wrap text-destructive">{error}</p>;
@@ -164,11 +174,74 @@ function PointView({ query, utc, color, days, onDays, visible, onVisible }: Poin
         <span className="text-[13px] text-muted-foreground">W/m² now</span>
       </p>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-        <SeriesToggles visible={visible} onChange={onVisible} earthError={data.earth_graph_error} />
+        <SeriesToggles visible={visible} onChange={onVisible} />
         <GraphWindow days={days} onChange={onDays} />
       </div>
       <InsolationChart series={series} currentUtc={utc} visible={visible} />
       <p className="mt-1 text-xs text-muted-foreground">{days} days around the selected time, hourly samples.</p>
+
+      <h3 className="mt-5 mb-1 font-medium text-muted-foreground">Earth line of sight</h3>
+      <EarthVisibilitySection visibility={data.earth_visibility} days={days} />
+    </div>
+  );
+}
+
+function formatDuration(seconds: number): string {
+  const hours = seconds / 3600;
+  if (hours < 24) return `${hours.toFixed(1)}h`;
+  const days = Math.floor(hours / 24);
+  const remHours = Math.round(hours % 24);
+  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+}
+
+function shortUtc(iso: string): string {
+  return iso.slice(5, 16).replace("T", " ");
+}
+
+function EarthVisibilitySection({
+  visibility,
+  days,
+}: {
+  visibility: NonNullable<SurfaceQueryState["data"]>["earth_visibility"];
+  days: number;
+}) {
+  if (visibility.always_visible) {
+    return (
+      <p className="m-0 text-xs text-muted-foreground">
+        Always in direct view over these {days} days, max {deg(visibility.windows[0]?.max_elevation_deg ?? 0)}.
+      </p>
+    );
+  }
+  if (visibility.never_visible) {
+    return <p className="m-0 text-xs text-muted-foreground">Never in direct view over these {days} days (far side).</p>;
+  }
+  const pct = (visibility.visible_fraction * 100).toFixed(1);
+  return (
+    <div>
+      <p className="m-0 text-xs text-muted-foreground">
+        Visible {pct}% of these {days} days ({visibility.windows.length}{" "}
+        {visibility.windows.length === 1 ? "window" : "windows"}).
+      </p>
+      <table className="mt-2 w-full border-collapse text-xs tabular-nums">
+        <thead>
+          <tr className="text-muted-foreground">
+            <th className="py-1 text-left font-medium">Rise (UTC)</th>
+            <th className="py-1 text-left font-medium">Set (UTC)</th>
+            <th className="py-1 text-right font-medium">Duration</th>
+            <th className="py-1 text-right font-medium">Max</th>
+          </tr>
+        </thead>
+        <tbody>
+          {visibility.windows.map((w, i) => (
+            <tr key={i} className="border-t border-border">
+              <td className="py-1">{w.clipped_start ? `≤ ${shortUtc(w.rise_utc)}` : shortUtc(w.rise_utc)}</td>
+              <td className="py-1">{w.clipped_end ? `≥ ${shortUtc(w.set_utc)}` : shortUtc(w.set_utc)}</td>
+              <td className="py-1 text-right">{formatDuration(w.duration_s)}</td>
+              <td className="py-1 text-right">{deg(w.max_elevation_deg)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

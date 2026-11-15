@@ -4,10 +4,9 @@ import { Checkbox, Label } from "@/shared/ui";
 interface Props {
   visible: SeriesVisibility;
   onChange: (visible: SeriesVisibility) => void;
-  earthError?: string | null;
 }
 
-export function SeriesToggles({ visible, onChange, earthError }: Props) {
+export function SeriesToggles({ visible, onChange }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
       <div className="flex items-center gap-1.5">
@@ -28,9 +27,6 @@ export function SeriesToggles({ visible, onChange, earthError }: Props) {
         />
         <Label htmlFor="show-earth" className="text-xs">Earth elevation</Label>
       </div>
-      {visible.earth && earthError && (
-        <span className="text-destructive" title={earthError}>Earth series unavailable: {earthError}</span>
-      )}
     </div>
   );
 }

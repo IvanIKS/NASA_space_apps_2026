@@ -100,11 +100,12 @@ export function InsolationChart({ series, currentUtc, visible = BOTH }: Props) {
       }
       if (showEarth && s.earth) {
         kinds.push("earth");
+        const byUtc = new Map(s.earth.map((d) => [d.utc, d.elevation_deg]));
         out.push({
           type: "line",
           name: s.name,
           yAxisIndex: 1,
-          data: s.earth.map((d) => d.elevation_deg),
+          data: axis.map((d) => byUtc.get(d.utc) ?? null),
           showSymbol: false,
           sampling: "lttb",
           color: s.color,
