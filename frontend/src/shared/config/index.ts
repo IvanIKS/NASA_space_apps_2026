@@ -9,3 +9,4 @@ export const MAX_GRAPH_DAYS = 365;
 
 export const MAX_POINTS = 4;
 export const POINT_COLORS = ["#f5a000", "#55aaff", "#7ed957", "#ff7ab6"] as const;
+export const EARTH_COLOR = "#55aaff";

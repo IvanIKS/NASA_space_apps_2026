@@ -24,6 +24,9 @@ export async function postJson<T>(path: string, body: unknown, signal?: AbortSig
 
 async function readError(res: Response): Promise<string> {
   const text = await res.text();
+  if (res.headers.get("content-type")?.includes("text/html")) {
+    return `Request failed with HTTP ${res.status}.`;
+  }
   try {
     const { detail } = JSON.parse(text);
     if (typeof detail === "string") return detail;

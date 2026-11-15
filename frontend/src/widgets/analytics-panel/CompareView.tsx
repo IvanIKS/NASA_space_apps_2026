@@ -6,24 +6,29 @@ import {
   litFraction,
   nextTransition,
   type InsolationSeries,
+  type SeriesVisibility,
 } from "@/entities/insolation";
 import type { SurfaceQueryState } from "@/entities/surface-observation";
 import { pointLabel } from "@/features/select-point";
 import { POINT_COLORS } from "@/shared/config";
 import { cn, formatDeg as deg } from "@/shared/lib";
 import { GraphWindow } from "./GraphWindow";
+import { SeriesToggles } from "./SeriesToggles";
 
 interface Props {
   queries: SurfaceQueryState[];
   utc: string;
   days: number;
   onDays: (days: number) => void;
+  visible: SeriesVisibility;
+  onVisible: (visible: SeriesVisibility) => void;
 }
 
 interface Row {
   index: number;
   sunEl: number;
   earthEl: number;
+  earthLos: number;
   watts: number;
   lit: number;
   next: string;
@@ -34,7 +39,7 @@ interface Snapshot {
   utc: string;
 }
 
-export function CompareView({ queries, utc, days, onDays }: Props) {
+export function CompareView({ queries, utc, days, onDays, visible, onVisible }: Props) {
   const settled = queries.every((q) => !q.loading);
   const [snapshot, setSnapshot] = useState<Snapshot>({ queries, utc });
   useEffect(() => {
@@ -53,6 +58,7 @@ export function CompareView({ queries, utc, days, onDays }: Props) {
           index,
           sunEl: data.sun.elevation_deg,
           earthEl: data.earth.elevation_deg,
+          earthLos: data.earth_visibility.visible_fraction,
           watts: data.insolation.insolation_watts,
           lit: litFraction(graph),
           next: t ? `${t.kind === "sunrise" ? "↑" : "↓"} ${formatHours(hoursBetween(utc, t.utc))}` : "—",
@@ -61,18 +67,28 @@ export function CompareView({ queries, utc, days, onDays }: Props) {
     [shown]
   );
   const loaded = rows.filter((r): r is Row => r !== null);
-  const best = (key: "sunEl" | "watts" | "lit") => {
+  const best = (key: "sunEl" | "watts" | "lit" | "earthLos") => {
     const values = loaded.map((r) => r[key]);
     const max = Math.max(...values);
     return values.some((v) => v !== max) ? max : NaN;
   };
   const bestSunEl = best("sunEl");
+  const bestEarthLos = best("earthLos");
   const bestWatts = best("watts");
   const bestLit = best("lit");
   const series = useMemo<InsolationSeries[]>(
     () =>
       shown.queries.flatMap((q, index) =>
-        q.data ? [{ name: pointLabel(index), color: POINT_COLORS[index], data: q.data.insolation.insolation_graph }] : []
+        q.data
+          ? [
+              {
+                name: pointLabel(index),
+                color: POINT_COLORS[index],
+                data: q.data.insolation.insolation_graph,
+                earth: q.data.earth_visibility.elevation_graph,
+              },
+            ]
+          : []
       ),
     [shown]
   );
@@ -87,6 +103,7 @@ export function CompareView({ queries, utc, days, onDays }: Props) {
             <th className="py-1 text-left font-medium">Point</th>
             <th className="py-1 text-right font-medium" title="Sun elevation">Sun</th>
             <th className="py-1 text-right font-medium" title="Earth elevation">Earth</th>
+            <th className="py-1 text-right font-medium" title="Share of the graph window with direct Earth line of sight">LOS</th>
             <th className="py-1 text-right font-medium" title="Illumination now">W/m²</th>
             <th className="py-1 text-right font-medium" title="Share of the graph window in sunlight">Lit</th>
             <th className="py-1 text-right font-medium" title="Next sunrise ↑ or sunset ↓">Next</th>
@@ -105,12 +122,13 @@ export function CompareView({ queries, utc, days, onDays }: Props) {
                 <>
                   <td className={hi(r.sunEl === bestSunEl)}>{deg(r.sunEl)}</td>
                   <td className="py-1.5 text-right">{deg(r.earthEl)}</td>
+                  <td className={hi(r.earthLos === bestEarthLos)}>{Math.round(r.earthLos * 100)}%</td>
                   <td className={hi(r.watts === bestWatts)}>{r.watts.toFixed(0)}</td>
                   <td className={hi(r.lit === bestLit)}>{Math.round(r.lit * 100)}%</td>
                   <td className="py-1.5 text-right whitespace-nowrap">{r.next}</td>
                 </>
               ) : (
-                <td className="py-1.5 text-right" colSpan={5}>
+                <td className="py-1.5 text-right" colSpan={6}>
                   {shown.queries[index].error ? <span className="text-destructive">error</span> : "…"}
                 </td>
               )}
@@ -125,14 +143,15 @@ export function CompareView({ queries, utc, days, onDays }: Props) {
 
       {series.length > 0 && (
         <>
-          <div className="mt-5 mb-1 flex items-center justify-between">
-            <h3 className="m-0 font-medium text-muted-foreground">Illumination</h3>
+          <div className="mt-5 mb-1 flex flex-wrap items-center justify-between gap-2">
+            <SeriesToggles visible={visible} onChange={onVisible} />
             <GraphWindow days={days} onChange={onDays} />
           </div>
-          <InsolationChart series={series} currentUtc={shown.utc} />
+          <InsolationChart series={series} currentUtc={shown.utc} visible={visible} />
           <p className="mt-1 text-xs text-muted-foreground">{days} days around the selected time, hourly samples.</p>
         </>
       )}
+
     </div>
   );
 }
